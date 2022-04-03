@@ -1,0 +1,28 @@
+.gamebutton {
+  width: 100%;
+  height: 75px;
+  transition: all .3s;
+
+  &.selected {
+    &:active {
+      background-color: lightyellow;
+    }
+    background-color: yellow;
+  }
+
+  &.correct {
+    &:active {
+      background-color: lightgreen;
+    }
+
+    background-color: forestgreen;
+  }
+
+  &.wrong {
+    &:active {
+      background-color: indianred;
+    }
+
+    background-color: red;
+  }
+}

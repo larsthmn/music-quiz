@@ -1,0 +1,29 @@
+.timebar-div {
+  margin-top: 20px;
+  background-color: rgb(233, 233, 233);
+  border-radius: .5rem;
+}
+
+.timebar {
+  height: 10px;
+  background: linear-gradient(to bottom, green, darkgreen);
+  //animation: roundtime 10s linear forwards;
+  animation-name: roundtime;
+  animation-timing-function: linear;
+  animation-fill-mode: none;
+  border-radius: 1rem;
+  padding-top: 20px;
+  // duration and delay given by style
+}
+
+@keyframes roundtime {
+  to {
+    width: 0;
+  }
+  from {
+    width: 100%;
+  }
+  0% {background: linear-gradient(to bottom, green, darkgreen);}
+  75%  {background: linear-gradient(to bottom, yellow, orange);}
+  95%   {background: linear-gradient(to bottom, red, darkred);}
+}

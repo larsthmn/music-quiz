@@ -9,3 +9,6 @@ edition = "2021"
 rocket = { version = "0.5.0-rc.1", features = ["json"]}
 serde = "1.0.136"
 rocket_dyn_templates = { version = "0.1.0-rc.1" , features = ["handlebars"]}
+thiserror = "1.0.30"
+strum = { version = "0.24", features = ["derive"] }
+strum_macros = "0.24"
