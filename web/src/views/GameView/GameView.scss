@@ -1,0 +1,15 @@
+.backbutton {
+  background: url("../../images/back-arrow.svg") no-repeat scroll center center darkgrey;
+  height: 50px;
+  width: 50px;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+}
+
+.button_container {
+  display: flex;
+  flex-direction: column;
+  width: 95%;
+  margin: auto;
+}

@@ -1,0 +1,30 @@
+input {
+  width: 80%;
+  height: 20px;
+  font-size: 17px;
+  background-image: url('../../images/user.svg');
+  background-repeat: no-repeat;
+  background-size: 20px;
+  background-position: 5px 5px;
+  padding: 5px 5px 5px 40px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 25px;
+}
+
+.login_button {
+  width: 95%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.preferences_button {
+  position:absolute;
+  margin-left:-50%;
+  left:52.5%;
+  width:95%;
+  bottom:5px;
+}
+
