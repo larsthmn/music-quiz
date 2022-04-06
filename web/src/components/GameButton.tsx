@@ -6,15 +6,23 @@ type ButtonProps = {
   correct: boolean,
   wrong: boolean,
   selected: boolean,
-  text: string
+  text: string,
+  markings: null | string[]
 }
 
-export const GameButton: React.FC<ButtonProps> = ({onClick, correct, wrong, selected, text}) => {
+export const GameButton: React.FC<ButtonProps> = ({onClick, correct, wrong, selected, text, markings}) => {
   return (
     <button
-      className={`gamebutton ${correct && 'correct'} ${wrong && 'wrong'} ${selected && 'selected'}`}
+      className={`button-element ${correct && 'correct'} ${wrong && 'wrong'} ${selected && 'selected'}`}
       onClick={onClick}>
+      <div className="button-text">
       {text}
+      </div>
+      <div className="button-mark-container">
+        {markings?.map((user: string) => {return (
+          <div className="button-mark">{user} </div>
+        );})}
+      </div>
     </button>
   );
 }

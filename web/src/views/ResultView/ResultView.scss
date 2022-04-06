@@ -1,0 +1,49 @@
+.result-bar-layout {
+  display: flex;
+  gap: 5px;
+  width: 100%;
+  margin: 15px 0;
+}
+
+.result-bar-container {
+  display: grid;
+  flex-grow: 1;
+}
+
+.player-name {
+  color: black;
+  font-weight: bold;
+  text-align: left;
+  padding: 7px;
+  width: 100px;
+  height: 40px;
+  border-radius: 5px;
+}
+
+@mixin result-style {
+  font-size: large;
+  border-radius: 5px;
+  height: 40px;
+  padding: 0 5px;
+}
+
+.result-bar-background {
+  @include result-style;
+  background: lightgrey;
+  text-align: left;
+  align-items: center;
+  grid-area: 1/1;
+}
+
+.result-bar {
+  @include result-style;
+  background: green;
+  grid-area: 1/1;
+}
+
+.result-text {
+  grid-area: 1/1;
+  padding: 7px;
+  text-shadow: white 0 0 10px;
+  color: black;
+}

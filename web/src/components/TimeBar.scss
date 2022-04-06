@@ -1,29 +1,53 @@
-.timebar-div {
-  margin-top: 20px;
-  background-color: rgb(233, 233, 233);
+@mixin timebarstyle {
   border-radius: .5rem;
+  height: 25px;
+}
+
+.timebar-container {
+  @include timebarstyle;
+  margin-bottom: 20px;
+  background-color: lightgrey;
+  display: grid;
 }
 
 .timebar {
-  height: 10px;
-  background: linear-gradient(to bottom, green, darkgreen);
-  //animation: roundtime 10s linear forwards;
-  animation-name: roundtime;
+  @include timebarstyle;
+  grid-area: 1 / 1;
   animation-timing-function: linear;
   animation-fill-mode: none;
-  border-radius: 1rem;
-  padding-top: 20px;
   // duration and delay given by style
 }
 
-@keyframes roundtime {
+.timebar-text {
+  text-shadow: white 2px 2px 3px;
+  font-size: large;
+  color: black;
+  text-align: center;
+  grid-area: 1 / 1;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+}
+
+@keyframes timeanimation-color {
   to {
     width: 0;
   }
   from {
     width: 100%;
   }
-  0% {background: linear-gradient(to bottom, green, darkgreen);}
-  75%  {background: linear-gradient(to bottom, yellow, orange);}
-  95%   {background: linear-gradient(to bottom, red, darkred);}
+
+  0%   {background-color: green;}
+  30%  {background-color: green;}
+  60%  {background-color: yellow;}
+  100% {background-color: red;}
+}
+
+@keyframes timeanimation {
+  to {
+    width: 0;
+  }
+  from {
+    width: 100%;
+  }
 }

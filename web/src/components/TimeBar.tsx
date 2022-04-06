@@ -4,6 +4,7 @@ import './TimeBar.scss';
 type TimeBarProps = {
   total_time: number,
   elapsed: number
+  colorful: boolean
 }
 
 type TimeBarState = {
@@ -13,10 +14,6 @@ type TimeBarState = {
 const TIMER_PERIOD: number = 1000;
 
 export class TimeBar extends React.Component<TimeBarProps, TimeBarState> {
-  // const style = {
-  //   "duration": total_time,
-  //   "left": total_time - elapsed
-  // }
   private interval: any;
 
   constructor(props: TimeBarProps) {
@@ -27,6 +24,7 @@ export class TimeBar extends React.Component<TimeBarProps, TimeBarState> {
     this.interval = null;
   }
 
+  // Counter is only for updating second counter, bar does not need regular updates
   decrementTimeRemaining = () => {
     if (this.state.elapsed < this.props.total_time) {
       this.setState({
@@ -56,13 +54,15 @@ export class TimeBar extends React.Component<TimeBarProps, TimeBarState> {
   render() {
     const style = {
       animationDuration: this.props.total_time + "ms",
-      animationDelay: -this.state.elapsed + "ms"
+      animationDelay: -this.state.elapsed + "ms",
+      animationName: this.props.colorful ? "timeanimation-color" : "timeanimation",
+      backgroundColor: this.props.colorful ? "lightgrey" : "grey",
     };
     return (
-      <div className="timebar-div">
-        <div key={Math.random()} className="timebar" style={style}>
-          {this.state.elapsed / 1000}/{this.props.total_time / 1000} s
-        </div>
+      <div className="timebar-container">
+        <div key={Math.random()} className="timebar" style={style}/>
+        <div className="timebar-text">{Math.round((this.props.total_time - this.state.elapsed) / 1000)}s</div>
+        {/*<div className="timebar-text">{this.props.total_time - this.state.elapsed}ms</div>*/}
       </div>
     );
   }
