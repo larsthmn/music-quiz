@@ -14,11 +14,12 @@ mod game;
 
 
 #[post("/press_button", format = "json", data = "<answer>")]
-fn select_answer(state: &State<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUser>) {
+fn select_answer(state: &State<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUser>) -> Json<GameState> {
     let mut s = state.lock().unwrap();
     if let Err(err)  = s.give_answer(answer.into_inner()) {
         println!("Error on giving answer: {}", err);
     }
+    Json(s.clone())
 }
 
 #[get("/get_state")]

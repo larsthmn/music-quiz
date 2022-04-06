@@ -1,12 +1,16 @@
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::{fmt, thread};
 use std::fmt::{Display, Formatter};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rocket::serde::{Deserialize, Serialize};
-use crate::AppStatus::{InGameAnswerPending, InGameWaitForNextQuestion};
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::Ready;
+
+// todo: as param, configure by admin
+const TIME_BETWEEN_ROUNDS: u64 = 30000;
+const TIME_TO_ANSWER: u64 = 2000;
+const TIME_BETWEEN_ANSWERS: u64 = 500;
 
 #[derive(Serialize, Clone)]
 pub struct Answer {
@@ -19,7 +23,28 @@ pub struct Answer {
 pub struct Question {
     pub text: String,
     pub answers: Vec<Answer>,
-    pub correct: i32
+    pub correct: u64,
+    pub index: i32,
+    pub total_questions: i32,
+}
+
+#[derive(Serialize, Clone)]
+pub struct PlayerScore {
+    pub player: String,
+    pub points: i32,
+    pub correct: u32,
+    pub answers_given: u32,
+}
+
+impl PlayerScore {
+    pub fn new(player: String) -> PlayerScore {
+        PlayerScore {
+            player,
+            points: 0,
+            correct: 0,
+            answers_given: 0
+        }
+    }
 }
 
 #[derive(PartialEq, Serialize, Copy, Clone, Debug, strum_macros::Display)]
@@ -27,7 +52,8 @@ pub enum AppStatus {
     Shutdown,
     Ready,
     InGameAnswerPending,
-    InGameWaitForNextQuestion
+    InGameWaitForNextQuestion,
+    BetweenRounds
 }
 
 // Main game management structure
@@ -36,9 +62,8 @@ pub struct GameState {
     pub status: AppStatus,
     pub action_start: u64,
     pub next_action: u64,
-    pub index: i32,
-    pub total_questions: i32,
-    pub current_question: Option<Question>
+    pub current_question: Option<Question>,
+    pub results: Vec<PlayerScore>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,11 +77,10 @@ impl GameState {
     pub fn new() -> GameState {
         GameState {
             status: AppStatus::Shutdown,
-            next_action: 0,
-            index: 0,
-            current_question: None,
             action_start: 0,
-            total_questions: 0,
+            next_action: 0,
+            current_question: None,
+            results: vec![]
         }
     }
 
@@ -104,48 +128,62 @@ fn get_epoch_ms() -> u64 {
         .as_millis() as u64
 }
 
-fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>) { // 2nd param trait with iterator over questions and actions like play?
-
-    // todo: as param, configure by admin
-    const TIME_TO_ANSWER: u64 = 10000;
-    const TIME_BETWEEN_ANSWERS: u64 = 10000;
-
+fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>) {
     let mut s = state.lock().unwrap();
-    s.status = Ready;
-    s.index = -1;
-    s.total_questions = questions.len() as i32;
-
+    s.results = vec![];
     drop(s);
 
-    thread::sleep(Duration::from_secs(3));
+    // Init results of this round
     for question in questions {
+        // Set new question
         let mut s = state.lock().unwrap();
-        s.current_question = Some(question.clone());
-        if let Some(q)  = &mut s.current_question {
-            q.correct = -1;
-        }
+        let mut q = question.clone();
+        q.correct = 0;
+        s.current_question = Some(q);
         let now = get_epoch_ms();
         s.action_start = now;
         s.next_action = now + TIME_TO_ANSWER;
-        s.index += 1;
-        s.status = InGameAnswerPending;
-        println!("Question no {} / {}", s.index + 1, s.total_questions);
+        s.status = AppStatus::InGameAnswerPending;
+        println!("Question no {} / {}", question.index + 1, question.total_questions);
         drop(s);
 
+        // Wait for users to answer
         thread::sleep(Duration::from_millis(TIME_TO_ANSWER));
 
+        // Evaluate answers
         let mut s = state.lock().unwrap();
-        println!("Question no {} / {} finished!", s.index + 1, s.total_questions);
-        s.status = InGameWaitForNextQuestion;
+        println!("Question no {} / {} finished!", question.index + 1, question.total_questions);
+        s.status = AppStatus::InGameWaitForNextQuestion;
         if let Some(q)  = &mut s.current_question {
+            // Publish correct index
             q.correct = question.correct;
         }
+        if let Some(q)  = &s.current_question.clone() { // todo: does it work without clone somehow?
+            for ans in &q.answers {
+                for player in &ans.selected_by {
+                    // find player in results
+                    if !s.results.iter().any(|score| score.player == *player) {
+                        s.results.push(PlayerScore::new(player.clone()));
+                    }
+                    let mut score = s.results
+                        .iter_mut()
+                        .find(|score| score.player == *player)
+                        .expect("Player must be in Vector");
+                    score.answers_given += 1;
+                    if ans.id == q.correct {
+                        score.correct += 1;
+                        score.points += 100;
+                    }
+                }
+            }
+        }
+        s.results.sort_by(|a, b| b.points.cmp(&a.points));
         let now = get_epoch_ms();
-        s.action_start = now;
+        s.action_start = now; // todo: maybe better to not use current timestamp but calculate from last
         s.next_action = now + TIME_BETWEEN_ANSWERS;
-        // todo: Evaluate answers
         drop(s);
 
+        // Wait for next question
         thread::sleep(Duration::from_millis(TIME_BETWEEN_ANSWERS));
     }
 
@@ -154,19 +192,27 @@ fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>) { // 2nd 
     s.current_question = None;
     let now = get_epoch_ms();
     s.action_start = now;
-    s.next_action = now + TIME_BETWEEN_ANSWERS;
-    s.index = -1;
-    s.status = Ready;
+    s.next_action = now + TIME_BETWEEN_ROUNDS;
+    s.status = AppStatus::BetweenRounds;
     drop(s);
 
 }
 
 pub fn run(state: Arc<Mutex<GameState>>) {
-    loop {
-        // Wait for start by admin?
-        println!("Wait for start by admin");
-        thread::sleep(Duration::from_secs(3));
 
+    // Wait for start by admin?
+    let mut s = state.lock().unwrap();
+    s.status = Ready;
+    s.results = vec![];
+    let now = get_epoch_ms();
+    s.action_start = now;
+    s.next_action = now + TIME_BETWEEN_ROUNDS;
+    s.current_question = None;
+    drop(s);
+    println!("Wait for start by admin");
+    thread::sleep(Duration::from_secs(3));
+
+    loop {
         // game start
         println!("Start round");
         let questions = vec![
@@ -177,6 +223,8 @@ pub fn run(state: Arc<Mutex<GameState>>) {
                               Answer { text: "A13 falsch".to_string(), id: 13, selected_by: vec![] },
                               Answer { text: "A14 falsch".to_string(), id: 14, selected_by: vec![] }],
                 correct: 11,
+                index: 0,
+                total_questions: 3
             },
             Question {
                 text: "Frage 2".to_string(),
@@ -185,6 +233,8 @@ pub fn run(state: Arc<Mutex<GameState>>) {
                               Answer { text: "A23 falsch".to_string(), id: 23, selected_by: vec![] },
                               Answer { text: "A24 falsch".to_string(), id: 24, selected_by: vec![] }],
                 correct: 22,
+                index: 1,
+                total_questions: 3
             },
             Question {
                 text: "Frage 3".to_string(),
@@ -193,9 +243,14 @@ pub fn run(state: Arc<Mutex<GameState>>) {
                               Answer { text: "A33 richtig".to_string(), id: 33, selected_by: vec![] },
                               Answer { text: "A34 falsch".to_string(), id: 34, selected_by: vec![] }],
                 correct: 33,
+                index: 2,
+                total_questions: 3
             }];
         game_round(&state, questions);
         println!("Round ended");
+
+        thread::sleep(Duration::from_secs(10));
+
         // let mut s = state.lock().unwrap();
         // next_question(s.deref_mut());
         // drop(s);

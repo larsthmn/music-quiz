@@ -1,7 +1,8 @@
-.gamebutton {
+.button-element {
   width: 100%;
-  height: 75px;
+  height: 80px;
   transition: all .3s;
+  position: relative;
 
   &.selected {
     &:active {
@@ -14,7 +15,6 @@
     &:active {
       background-color: lightgreen;
     }
-
     background-color: forestgreen;
   }
 
@@ -22,7 +22,28 @@
     &:active {
       background-color: indianred;
     }
-
     background-color: red;
   }
+}
+
+.button-text {
+  text-shadow: white 0 0 15px;
+}
+
+.button-mark-container {
+  position: absolute;
+  bottom: -5px;
+  right: 5px;
+}
+
+.button-mark {
+  font-size: small;
+  margin: 2px;
+  background: linear-gradient(#2980b9, #3498db);
+  color: white;
+  border-radius: 4px;
+  padding: 1px 4px;
+  text-shadow: black 0 0 5px;
+
+  float:right;
 }
