@@ -1,0 +1,14 @@
+.admin-container {
+  display: flex;
+  justify-content: space-between;
+  flex-flow: row wrap;
+}
+
+.admin-container > * {
+  margin: 5px;
+}
+
+.radio-container {
+  display: flex;
+  flex-flow: column;
+}

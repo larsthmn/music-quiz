@@ -7,7 +7,7 @@ type ButtonProps = {
   wrong: boolean,
   selected: boolean,
   text: string,
-  markings: null | string[]
+  markings: undefined | string[]
 }
 
 export const GameButton: React.FC<ButtonProps> = ({onClick, correct, wrong, selected, text, markings}) => {
