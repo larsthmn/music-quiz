@@ -2,17 +2,24 @@ import React, {useEffect, useState} from 'react';
 import './App.scss';
 import {LoginView} from "./views/LoginView/LoginView";
 import {GameView} from "./views/GameView/GameView";
+import {AdminView} from "./views/AdminView/AdminView";
 
 const LOCALSTORE_USER = "username";
 const TIME_SYNC_PERIOD = 20000;
 
+enum UserState {
+  NotLoggedIn,
+  LoggedIn,
+  Admin
+}
+
 function App() {
   const [username, setUsername] = useState<string | null>(window.localStorage.getItem(LOCALSTORE_USER));
   const [timediff, setTimediff] = useState<number>(0);
+  const [userState, setUserState] = useState<UserState>(UserState.NotLoggedIn);
 
   const goBack = () => {
-    setUsername("");
-    window.localStorage.removeItem(LOCALSTORE_USER);
+    setUserState(UserState.NotLoggedIn);
   }
 
   // time sync
@@ -34,20 +41,27 @@ function App() {
     return () => clearInterval(interval);
   })
 
-  // No username set => needs login
-  if (!username) {
+  if (userState == UserState.NotLoggedIn || username == null) {
     return (
-      <LoginView onSubmit={(name: string) => {
-        window.localStorage.setItem(LOCALSTORE_USER, name);
-        setUsername(name);
+      <LoginView username={username} onSubmit={(name: string, admin: boolean) => {
+        if (admin) {
+          setUserState(UserState.Admin);
+        } else if (name.length > 0) {
+          window.localStorage.setItem(LOCALSTORE_USER, name);
+          setUsername(name);
+          setUserState(UserState.LoggedIn);
+        }
       }}/>
     );
+  } else if (userState == UserState.LoggedIn) {
+    return (
+      <GameView username={username} exit={goBack} timediff={timediff}/>
+    );
+  } else { // } if (userState == UserState.Admin) {
+    return (
+      <AdminView exit={goBack} timediff={timediff}/>
+    );
   }
-
-  // Username set = Ready for game
-  return (
-    <GameView username={username} exit={goBack} timediff={timediff}/>
-  )
 }
 
 export default App;

@@ -1,4 +1,4 @@
-input {
+.name_input {
   width: 80%;
   height: 20px;
   font-size: 17px;
@@ -22,9 +22,9 @@ input {
 
 .preferences_button {
   position:absolute;
-  margin-left:-50%;
-  left:52.5%;
-  width:95%;
-  bottom:5px;
+  margin-left:auto;
+  width:90%;
+  bottom:15px;
+  margin-top: auto;
 }
 

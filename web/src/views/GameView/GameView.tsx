@@ -10,11 +10,12 @@ type GameProps = {
   timediff: number // local time - backend time
 }
 
-const MIN_POLL_RATE = 50;
+const MIN_POLL_RATE = 200;
 const MAX_POLL_RATE = 2000;
 
 export class GameView extends React.Component<GameProps, any> {
   private timer: NodeJS.Timeout | null;
+  private mounted: boolean;
 
   constructor(props: GameProps) {
     super(props);
@@ -39,14 +40,15 @@ export class GameView extends React.Component<GameProps, any> {
     //         "answers_given": 3
     //       }]
     //   }}
+    this.mounted = false;
     this.timer = null;
   }
 
   poll() {
-    // get new state and start timer for next automatic poll
-    this.parseResponse(fetch("/get_state"))
+    if (this.mounted) {
+      this.parseResponse(fetch("/get_state"));
+    }
   };
-
 
   parseResponse(promise: Promise<Response>) {
     // stop running timers
@@ -71,6 +73,7 @@ export class GameView extends React.Component<GameProps, any> {
   }
 
   componentDidMount() {
+    this.mounted = true;
     this.poll();
   }
 
@@ -79,6 +82,7 @@ export class GameView extends React.Component<GameProps, any> {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.mounted = false;
   }
 
   onClick(id: number) {
@@ -116,18 +120,18 @@ export class GameView extends React.Component<GameProps, any> {
                 <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
                          elapsed={Date.now() - data.action_start - this.props.timediff}
                          colorful={data.status === "InGameAnswerPending"}/>
-                {data.current_question.answers.map((answer: { id: number; selected_by: string[] | null; text: string; }) => {
+                {data.current_question.answers.map((answer: { id: number; given_answers: any[] | null; text: string; }) => {
                   return (
                     <GameButton key={answer.id} onClick={() => {
                       this.onClick(answer.id);
                     }}
                                 correct={answer.id === data.current_question.correct}
-                                wrong={data.current_question.correct !== -1
+                                wrong={data.current_question.correct !== 0
                                         && answer.id !== data.current_question.correct
-                                        && answer.selected_by !== null ? answer.selected_by.includes(this.props.username) : false}
-                                selected={answer.selected_by !== null ? answer.selected_by.includes(this.props.username) : false}
+                                        && answer.given_answers !== null ? answer.given_answers?.find(x => x.name === this.props.username) : false}
+                                selected={answer.given_answers !== null ? answer.given_answers?.find(x => x.name === this.props.username) : false}
                                 text={answer.text}
-                                markings={answer.selected_by}>
+                                markings={answer.given_answers?.map(a => String(a.name))}>
                     </GameButton>
                   );
                 })}
@@ -141,6 +145,16 @@ export class GameView extends React.Component<GameProps, any> {
 
         case "Ready":
           content = <h2>Warte auf Spielstart...</h2>;
+          break;
+
+        case "BeforeGame":
+          content =
+            <div>
+              <h2>Bereitmachen</h2>
+              <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
+                       elapsed={Date.now() - data.action_start - this.props.timediff}
+                       colorful={true}/>
+            </div>;
           break;
 
         case "Shutdown":
@@ -161,7 +175,6 @@ export class GameView extends React.Component<GameProps, any> {
             onClick={this.props.exit}>
           </button>
         </div>
-        {data && data.status}
         {content}
       </div>
     );
