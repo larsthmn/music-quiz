@@ -109,7 +109,8 @@ async fn main() {
   let preferences = Arc::new(Mutex::new(
     GamePreferences::new()));
   let g = gamestate.clone();
-  let handle = thread::spawn(move || { game::run(g, rx) });
+  let p = preferences.clone();
+  let handle = thread::spawn(move || { game::run(g, rx, p) });
   // thread starten, objekt übergeben
 
   // HTTP interface starten

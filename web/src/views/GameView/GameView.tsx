@@ -10,36 +10,36 @@ type GameProps = {
   timediff: number // local time - backend time
 }
 
-const MIN_POLL_RATE = 200;
-const MAX_POLL_RATE = 2000;
+const MIN_POLL_RATE = 150;
+const MAX_POLL_RATE = 10000;
 
 export class GameView extends React.Component<GameProps, any> {
-  private timer: NodeJS.Timeout | null;
+  private timer: ReturnType<typeof setTimeout> | null;
   private mounted: boolean;
 
   constructor(props: GameProps) {
     super(props);
     this.state = {data: {status: "Shutdown"}};
     // this.state = {
-    //   data: {
-    //     "status": "BetweenRounds",
-    //     "action_start": 1649273413432,
-    //     "next_action": 1649273443432,
-    //     "current_question": null,
-    //     "results": [
-    //       {
-    //         "player": "Lars ",
-    //         "points": 100,
-    //         "correct": 0,
-    //         "answers_given": 3
+    //   data:
+    //     {
+    //       "status": "InGameAnswerPending",
+    //       "action_start": 1649792129360,
+    //       "next_action": 1649792134360,
+    //       "current_question": {
+    //         "text": "Frage 1",
+    //         "answers": [{"text": "A11 richtig", "id": 11}, {"text": "A12 falsch", "id": 12}, {
+    //           "text": "A13 falsch",
+    //           "id": 13
+    //         }, {"text": "A14 falsch", "id": 14}],
+    //         "correct":12,
+    //         "index": 0,
+    //         "total_questions": 3
     //       },
-    //       {
-    //         "player": "Spacken",
-    //         "points": 335,
-    //         "correct": 1,
-    //         "answers_given": 3
-    //       }]
-    //   }}
+    //       "results": [],
+    //       "given_answers": [{"answer_id": 11, "user": "aaaa", "ts": 1649792130575}]
+    //     }
+    // };
     this.mounted = false;
     this.timer = null;
   }
@@ -109,6 +109,22 @@ export class GameView extends React.Component<GameProps, any> {
       switch (data.status) {
         case "InGameAnswerPending":
         case "InGameWaitForNextQuestion":
+          const buttons = data.current_question.answers.map((answer: { id: number; given_answers: any[] | null; text: string; }) => {
+            const is_selected: boolean = data.given_answers?.find((x: any) => x.user === this.props.username && answer.id === x.answer_id);
+            const is_correct_answer: boolean = answer.id === data.current_question.correct;
+            const is_correct_known: boolean = data.current_question.correct !== 0;
+            return (
+              <GameButton key={answer.id} onClick={() => {
+                this.onClick(answer.id);
+              }}
+                          correct={is_correct_known && is_correct_answer}
+                          wrong={is_correct_known && !is_correct_answer && is_selected}
+                          selected={is_selected}
+                          text={answer.text}
+                          markings={data.given_answers?.filter((a: any) => a.answer_id === answer.id).map((a: { user: string; }) => String(a.user))}>
+              </GameButton>
+            );
+          });
           content =
             <div>
               <h2>
@@ -120,21 +136,7 @@ export class GameView extends React.Component<GameProps, any> {
                 <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
                          elapsed={Date.now() - data.action_start - this.props.timediff}
                          colorful={data.status === "InGameAnswerPending"}/>
-                {data.current_question.answers.map((answer: { id: number; given_answers: any[] | null; text: string; }) => {
-                  return (
-                    <GameButton key={answer.id} onClick={() => {
-                      this.onClick(answer.id);
-                    }}
-                                correct={answer.id === data.current_question.correct}
-                                wrong={data.current_question.correct !== 0
-                                        && answer.id !== data.current_question.correct
-                                        && answer.given_answers !== null ? answer.given_answers?.find(x => x.name === this.props.username) : false}
-                                selected={answer.given_answers !== null ? answer.given_answers?.find(x => x.name === this.props.username) : false}
-                                text={answer.text}
-                                markings={answer.given_answers?.map(a => String(a.name))}>
-                    </GameButton>
-                  );
-                })}
+                {buttons}
               </div>
             </div>
           break;
