@@ -34,29 +34,13 @@ const SingleSelection: React.FC<SelectionProps> =
           return (
             <label>
               <input checked={selected === sm.name} type="radio" value={sm.name} name={name}
-                     onChange={(e) => onChange(e.target.value)}/> {sm.description}
+                     onClick={() => onChange(sm.name)}/> {sm.description}
             </label>
           );
         })}
       </div>
     );
   }
-
-const useFetch = (url: string) => {
-  const [data, setData] = useState(null);
-
-  // empty array as second argument equivalent to componentDidMount
-  useEffect(() => {
-    async function fetchData() {
-      const response = await fetch(url);
-      const json = await response.json();
-      setData(json);
-    }
-    fetchData();
-  }, [url]);
-
-  return data;
-};
 
 export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
   const [preferences, setPreferences] = useState({data: {scoremode: "Time"}});
@@ -76,39 +60,40 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
     parseResponse(fetch("/get_preferences"));
   }, [])
 
+  const saveScoremode = (sm: string) => {
+    parseResponse(
+      fetch("/set?scoremode=" + sm, {
+        'method': 'POST'
+      })
+    );
+  };
+
+  const startGame =  () => {
+      fetch("/start_game?playlist=" + "whatever", {
+        'method': 'POST',
+      }).then(r => console.log(r));
+  }
+
+  const stopGame = () => {
+    fetch("/stop_game", {
+      'method': 'POST',
+    }).then(r => console.log(r));
+  };
+
+
   if (preferences) {
     return (
       <div className="admin-container">
-        <button onClick={() => {
-          fetch("/start_game?playlist=" + "whatever", {
-            'method': 'POST',
-          }).then(r => console.log(r));
-        }}>
+        <button onClick={startGame}>
           Spiel starten
         </button>
-        <button onClick={() => {
-          fetch("/stop_game", {
-            'method': 'POST',
-          }).then(r => console.log(r));
-        }}>
+        <button onClick={stopGame}>
           Spiel abbrechen
         </button>
 
-        <SingleSelection selected={preferences.data.scoremode} name="scoremode" display="Punktebewertung" options={SCORE_MODES} onChange={(sm: string) => {
-          setPreferences({data: {scoremode: sm}});
-        }}/>
-
-        <button onClick={() => {
-          parseResponse(fetch("/set_preferences", {
-            'method': 'POST',
-            'headers': {
-              'Content-Type': 'application/json',
-            },
-            'body': JSON.stringify(preferences.data)
-          }));
-        }}>
-          Speichern
-        </button>
+        <SingleSelection selected={preferences.data.scoremode}
+                         name="scoremode" display="Punktebewertung"
+                         options={SCORE_MODES} onChange={saveScoremode} />
 
         <button
           className={'backbutton'}

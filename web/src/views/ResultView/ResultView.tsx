@@ -6,9 +6,10 @@ type ResultViewProps = {
 }
 
 export const ResultView: React.FC<ResultViewProps> = ({results}) => {
-  const max = Math.max.apply(Math, results.map((r) => {
+  let max = Math.max.apply(Math, results.map((r) => {
     return r.points;
   }));
+  if (max <= 0) max = 1;
   return (
     <div>
       <h2>Ergebnisse:</h2>

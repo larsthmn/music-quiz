@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -14,15 +14,15 @@ const TIME_BEFORE_ROUND: Duration = Duration::from_secs(3);
 
 #[derive(Serialize, Clone)]
 pub struct UserAnswer {
-    pub name: String,
+    pub answer_id: u64,
+    pub user: String,
     pub ts: u64,
 }
 
 #[derive(Serialize, Clone)]
 pub struct Answer {
     pub text: String,
-    pub id: u64,
-    pub given_answers: Vec<UserAnswer>,
+    pub id: u64
 }
 
 #[derive(Serialize, Clone)]
@@ -71,6 +71,7 @@ pub struct GameState {
     pub next_action: u64,
     pub current_question: Option<Question>,
     pub results: Vec<PlayerScore>,
+    pub given_answers: Vec<UserAnswer>,
 }
 
 // Private game management structure
@@ -119,6 +120,7 @@ impl GameState {
             next_action: 0,
             current_question: None,
             results: vec![],
+            given_answers: vec![]
         }
     }
 
@@ -129,9 +131,9 @@ impl GameState {
         }
         // Check if answers already contain user somewhere
         if let Some(current_question) = &mut self.current_question {
-            let user_has_selected = current_question.answers
+            let user_has_selected = self.given_answers
                 .iter()
-                .any(|a| a.given_answers.iter().any(|u| u.name == answer.user));
+                .any(|a| a.user == answer.user);
 
             if user_has_selected {
                 return Err(AnswerNotAllowed("Already selected an answer"));
@@ -147,7 +149,8 @@ impl GameState {
                 .find(|a| a.id == answer.id);
             if let Some(ans) = selected_answer {
                 println!("User {} selected {} at {}", answer.user, ans.text, answer.timestamp);
-                ans.given_answers.push(UserAnswer{name: answer.user.clone(), ts: answer.timestamp});
+                self.given_answers.push(
+                    UserAnswer { user: answer.user.clone(), ts: answer.timestamp, answer_id: answer.id });
             } else {
                 return Err(AnswerNotAllowed("Invalid ID"));
             }
@@ -169,7 +172,8 @@ fn get_epoch_ms() -> u64 {
 /// Executes a game round:
 ///
 /// Init => for each `question` [set question => wait for answer] => show results
-fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>, rx: &Receiver<GameCommand>) {
+fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>, rx: &Receiver<GameCommand>,
+              pref: &Arc<Mutex<GamePreferences>>) {
     let mut s = state.lock().unwrap();
     let next_timeout = prepare_round(&mut s);
     drop(s);
@@ -190,7 +194,9 @@ fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>, rx: &Rece
 
             // Evaluate answers
             let mut s = state.lock().unwrap();
-            let next_timeout = finish_question(&question, &mut s);
+            let p = pref.lock().unwrap();
+            let next_timeout = finish_question(&question, &mut s, &p);
+            drop(p);
             drop(s);
 
             // Wait for next question or stopping game
@@ -206,18 +212,19 @@ fn game_round(state: &Arc<Mutex<GameState>>, questions: Vec<Question>, rx: &Rece
     drop(s);
 }
 
-fn prepare_round(s: &mut MutexGuard<GameState>) -> u64 {
+fn prepare_round(s: &mut GameState) -> u64 {
     s.results = vec![];
     s.current_question = None;
     s.status = AppStatus::BeforeGame;
     let now = get_epoch_ms();
     s.action_start = now;
     s.next_action = now + TIME_BEFORE_ROUND.as_millis() as u64;
+    s.given_answers = vec![];
     let next_timeout = s.next_action;
     next_timeout
 }
 
-fn end_round(s: &mut MutexGuard<GameState>) {
+fn end_round(s: &mut GameState) {
     s.current_question = None;
     s.action_start = 0;
     s.next_action = 0;
@@ -225,33 +232,36 @@ fn end_round(s: &mut MutexGuard<GameState>) {
 }
 
 /// Evaluate answers of users and set game state accordingly
-fn finish_question(question: &Question, s: &mut MutexGuard<GameState>) -> u64 {
+fn finish_question(question: &Question, s: &mut GameState, pref: &GamePreferences) -> u64 {
     println!("Question no {} / {} finished!", question.index + 1, question.total_questions);
     s.status = AppStatus::InGameWaitForNextQuestion;
     if let Some(q) = &mut s.current_question {
         // Publish correct index
         q.correct = question.correct;
     }
-    if let Some(q) = s.current_question.clone() { // todo: does it work without clone somehow?
-        for ans in &q.answers {
-
-            for user_ans in &ans.given_answers {
-                // find player in results
-                if !s.results.iter_mut().any(|score| score.player == user_ans.name) {
-                    s.results.push(PlayerScore::new(user_ans.name.clone()));
-                }
-                // Points need to be calculated here, because later s can't be borrowed (since score = mutable borrow)
-                let points_if_correct = ((1.0 - (user_ans.ts - s.action_start) as f32 /
-                  (s.next_action - s.action_start) as f32) * 100.0).round() as i32;
-                let score = s.results
-                  .iter_mut()
-                  .find(|score| score.player == user_ans.name)
-                  .expect("Player must be in Vector");
-                score.answers_given += 1;
-                if ans.id == q.correct {
-                    score.correct += 1;
-                    score.points += points_if_correct;
-                }
+    if let Some(q) = &s.current_question {
+        let given_answers = &mut s.given_answers;
+        given_answers.sort_by(|a, b| a.ts.cmp(&b.ts));
+        for (pos, user_ans) in given_answers.iter().enumerate() {
+            // find player in results
+            if !s.results.iter_mut().any(|score| score.player == user_ans.user) {
+                s.results.push(PlayerScore::new(user_ans.user.clone()));
+            }
+            // Points need to be calculated here, because later s can't be borrowed (since score = mutable borrow)
+            let points_if_correct = match pref.scoremode {
+                ScoreMode::Time => ((1.0 - (user_ans.ts - s.action_start) as f32 /
+                  (s.next_action - s.action_start) as f32) * 100.0).round() as i32,
+                ScoreMode::Order => (100 - pos * 10) as i32,
+                ScoreMode::WrongFalse => 100
+            };
+            let score = s.results
+              .iter_mut()
+              .find(|score| score.player == user_ans.user)
+              .expect("Player must be in Vector");
+            score.answers_given += 1;
+            if user_ans.answer_id == q.correct {
+                score.correct += 1;
+                score.points += points_if_correct;
             }
         }
     }
@@ -272,6 +282,7 @@ fn set_question(mut question: Question, s: &mut GameState) -> u64 {
     s.action_start = now;
     s.next_action = now + TIME_TO_ANSWER.as_millis() as u64;
     s.status = AppStatus::InGameAnswerPending;
+    s.given_answers = vec![];
     s.next_action
 }
 
@@ -294,7 +305,7 @@ fn wait_for_command(rx: &Receiver<GameCommand>, command: GameCommand, until: u64
 }
 
 /// Main loop for the game thread. `rx` is used to receive game commands.
-pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>) {
+pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>) {
 
     // Wait for start by admin?
     let mut s = state.lock().unwrap();
@@ -314,7 +325,7 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>) {
         // generate questions, connect to spotify, prepare everything for the round
         let questions = generate_questions();
 
-        game_round(&state, questions, &rx);
+        game_round(&state, questions, &rx, &preferences);
         // After the round the results are available to be fetched until the next round is started
 
         println!("Round ended");
@@ -338,30 +349,30 @@ fn generate_questions() -> Vec<Question> {
     vec![
         Question {
             text: "Frage 1".to_string(),
-            answers: vec![Answer { text: "A11 richtig".to_string(), id: 11, given_answers: vec![] },
-                          Answer { text: "A12 falsch".to_string(), id: 12, given_answers: vec![] },
-                          Answer { text: "A13 falsch".to_string(), id: 13, given_answers: vec![] },
-                          Answer { text: "A14 falsch".to_string(), id: 14, given_answers: vec![] }],
+            answers: vec![Answer { text: "A11 richtig".to_string(), id: 11 },
+                          Answer { text: "A12 falsch".to_string(),  id: 12 },
+                          Answer { text: "A13 falsch".to_string(),  id: 13 },
+                          Answer { text: "A14 falsch".to_string(),  id: 14 }],
             correct: 11,
             index: 0,
             total_questions: 3,
         },
         Question {
             text: "Frage 2".to_string(),
-            answers: vec![Answer { text: "A21 falsch".to_string(), id: 21, given_answers: vec![] },
-                          Answer { text: "A22 richtig".to_string(), id: 22, given_answers: vec![] },
-                          Answer { text: "A23 falsch".to_string(), id: 23, given_answers: vec![] },
-                          Answer { text: "A24 falsch".to_string(), id: 24, given_answers: vec![] }],
+            answers: vec![Answer { text: "A21 falsch".to_string(),  id: 21 },
+                          Answer { text: "A22 richtig".to_string(), id: 22 },
+                          Answer { text: "A23 falsch".to_string(),  id: 23 },
+                          Answer { text: "A24 falsch".to_string(),  id: 24 }],
             correct: 22,
             index: 1,
             total_questions: 3,
         },
         Question {
             text: "Frage 3".to_string(),
-            answers: vec![Answer { text: "A31 falsch".to_string(), id: 31, given_answers: vec![] },
-                          Answer { text: "A32 falsch".to_string(), id: 32, given_answers: vec![] },
-                          Answer { text: "A33 richtig".to_string(), id: 33, given_answers: vec![] },
-                          Answer { text: "A34 falsch".to_string(), id: 34, given_answers: vec![] }],
+            answers: vec![Answer { text: "A31 falsch".to_string(),  id: 31 },
+                          Answer { text: "A32 falsch".to_string(),  id: 32 },
+                          Answer { text: "A33 richtig".to_string(), id: 33 },
+                          Answer { text: "A34 falsch".to_string(),  id: 34 }],
             correct: 33,
             index: 2,
             total_questions: 3,
