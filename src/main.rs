@@ -11,6 +11,7 @@ use crate::game::{AnswerFromUser, AppStatus, GameState, GameReferences, GameComm
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod game;
+mod quiz;
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
@@ -23,15 +24,10 @@ fn select_answer(state: &State<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUs
   Json(s.clone())
 }
 
-#[post("/start_game?<playlist>")]
-fn start_game(references: &State<Arc<Mutex<GameReferences>>>, playlist: Option<String>) {
+#[post("/start_game")]
+fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   let r = references.lock().unwrap();
-  if let Some(p) = playlist {
-    match r.tx_commands.send(GameCommand::StartGame(p.clone())) {
-      Err(e) => eprintln!("Error on starting game with playlist {}: {}", p, e),
-      Ok(_) => println!("Started game, playlist = {}", p)
-    }
-  }
+  r.tx_commands.send(GameCommand::StartGame);
 }
 
 #[post("/set?<scoremode>")]
@@ -99,21 +95,16 @@ fn get_time(now: Option<u64>) -> Json<TimeAnswer> {
 
 #[rocket::main]
 async fn main() {
-  // objekt erstellen
-
-  let gamestate = Arc::new(
-    Mutex::new(GameState::new()));
+  let gamestate = Arc::new(Mutex::new(GameState::new()));
   let (tx, rx) = mpsc::channel::<GameCommand>();
   let references = Arc::new(Mutex::new(
-    GameReferences { spotify_handle: 0, tx_commands: tx }));
-  let preferences = Arc::new(Mutex::new(
-    GamePreferences::new()));
+    GameReferences { tx_commands: tx }));
+  let preferences = Arc::new(Mutex::new(GamePreferences::new()));
   let g = gamestate.clone();
   let p = preferences.clone();
   let handle = thread::spawn(move || { game::run(g, rx, p) });
-  // thread starten, objekt übergeben
 
-  // HTTP interface starten
+  // Start HTTP interface
   rocket::build()
     .mount("/", routes![select_answer,
             get_state, get_time, start_game, stop_game, set_preference, get_preferences, set_preferences])
