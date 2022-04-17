@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React from 'react';
 import './GameView.scss';
 import {GameButton} from "../../components/GameButton";
 import {TimeBar} from "../../components/TimeBar";
@@ -36,7 +36,7 @@ export class GameView extends React.Component<GameProps, any> {
     //         "index": 0,
     //         "total_questions": 3
     //       },
-    //       "results": [],
+    //       "players": [],
     //       "given_answers": [{"answer_id": 11, "user": "aaaa", "ts": 1649792130575}]
     //     }
     // };
@@ -85,7 +85,7 @@ export class GameView extends React.Component<GameProps, any> {
     this.mounted = false;
   }
 
-  onClick(id: number) {
+  onClick(id: any) {
     const data = {
       "id": id,
       "timestamp": Date.now() - this.props.timediff,
@@ -109,7 +109,7 @@ export class GameView extends React.Component<GameProps, any> {
       switch (data.status) {
         case "InGameAnswerPending":
         case "InGameWaitForNextQuestion":
-          const buttons = data.current_question.answers.map((answer: { id: number; given_answers: any[] | null; text: string; }) => {
+          const buttons = data.current_question.answers.map((answer: { id: any; given_answers: any[] | null; text: string; }) => {
             const is_selected: boolean = data.given_answers?.find((x: any) => x.user === this.props.username && answer.id === x.answer_id);
             const is_correct_answer: boolean = answer.id === data.current_question.correct;
             const is_correct_known: boolean = data.current_question.correct !== 0;
@@ -125,8 +125,10 @@ export class GameView extends React.Component<GameProps, any> {
               </GameButton>
             );
           });
+
           content =
             <div>
+              <h3>{data.current_question?.index} / {data.current_question?.total_questions}</h3>
               <h2>
                 {data.current_question.text}
                 {data.status === "InGameAnswerPending" && " (Bitte antworten)"}
@@ -142,7 +144,7 @@ export class GameView extends React.Component<GameProps, any> {
           break;
 
         case "BetweenRounds":
-          content = <ResultView results={data.results}/>;
+          content = <ResultView results={data.players}/>;
           break;
 
         case "Ready":

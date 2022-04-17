@@ -1,5 +1,7 @@
 import React, {useEffect, useState} from "react";
 import './AdminView.scss';
+import {Simulate} from "react-dom/test-utils";
+import play = Simulate.play;
 
 type AdminViewProps = {
   timediff: number,
@@ -60,9 +62,9 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
     parseResponse(fetch("/get_preferences"));
   }, [])
 
-  const saveScoremode = (sm: string) => {
+  const savePreference = (name: string, value: string) => {
     parseResponse(
-      fetch("/set?scoremode=" + sm, {
+      fetch("/set?" + name + "=" + value, {
         'method': 'POST'
       })
     );
@@ -90,10 +92,14 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
         <button onClick={stopGame}>
           Spiel abbrechen
         </button>
-
         <SingleSelection selected={preferences.data.scoremode}
                          name="scoremode" display="Punktebewertung"
-                         options={SCORE_MODES} onChange={saveScoremode} />
+                         options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)} />
+
+        <select onChange={(e) => savePreference("playlist", e.target.value)}>
+          <option value="1">Playlist 1</option>
+          <option value="2">Playlist 2</option>
+        </select>
 
         <button
           className={'backbutton'}
