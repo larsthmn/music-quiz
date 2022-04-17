@@ -90,7 +90,8 @@ pub enum ScoreMode {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GamePreferences {
   pub scoremode: ScoreMode,
-  pub playlist: String,
+  pub playlists: Vec<String>,
+  pub selected_playlist: String,
   pub content: GameContent,
 }
 
@@ -98,7 +99,8 @@ impl GamePreferences {
   pub fn new() -> GamePreferences {
     GamePreferences {
       scoremode: ScoreMode::WrongFalse,
-      playlist: "".to_string(),
+      playlists: vec!["P1".to_string(), "P2".to_string()], // todo: Change back to vec![]
+      selected_playlist: "".to_string(),
       content: GameContent::new()
     }
   }
