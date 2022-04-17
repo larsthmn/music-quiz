@@ -30,13 +30,19 @@ fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   r.tx_commands.send(GameCommand::StartGame);
 }
 
-#[post("/set?<scoremode>")]
-fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>, scoremode: Option<ScoreMode>)
+#[post("/set?<scoremode>&<playlist>")]
+fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
+                  scoremode: Option<ScoreMode>,
+                  playlist: Option<String>)
                   -> Json<GamePreferences> {
   let mut p = preferences.lock().unwrap();
   if let Some(sm) = scoremode {
+    println!("set scoremode to {}", sm);
     p.scoremode = sm;
-    println!("set scoremode to {}", sm); // todo
+  }
+  if let Some(pl) = playlist {
+    println!("set playlist to {}", pl);
+    p.selected_playlist = pl;
   }
   Json(p.clone())
 }
