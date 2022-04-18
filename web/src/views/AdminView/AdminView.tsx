@@ -1,6 +1,9 @@
-import React, {useEffect, useState} from "react";
+import React, {MouseEventHandler, useEffect, useState} from "react";
 import './AdminView.scss';
-import {SingleSelection, Selection} from "../../components/SingleSelection";
+import {SingleSelection, SingleSelectionElement} from "../../components/SingleSelection";
+import {MultiSlider, MultiSliderElement} from "../../components/MultiSlider";
+import SpotifyLogin from "../../spotifyLogin";
+import {Link} from "react-router-dom";
 
 enum ScoreMode {
   Time = "Time",
@@ -8,29 +11,60 @@ enum ScoreMode {
   Order = "Order"
 }
 
-const SCORE_MODES: Selection[] = [
+const SCORE_MODES: SingleSelectionElement[] = [
   {name: ScoreMode.Time, description: "Zeit"},
   {name: ScoreMode.WrongFalse, description: "Nur richtig/falsch"},
   {name: ScoreMode.Order, description: "Reihenfolge"}];
 
-type GameContent = {
-  playlist: string,
-  count: number
+// enum Timings {
+//   BetweenRounds = "BetweenRounds",
+//   ToAnswer = "ToAnswer",
+//   BetweenAnswers = "BetweenAnswers",
+//   BeforeRound = "BeforeRound"
+// }
+//
+// const TIME_OPTIONS: MultiSliderElement[] = [
+//   {name: Timings.BetweenRounds, description: "Zeit"},
+//   {name: ScoreMode.WrongFalse, description: "Nur richtig/falsch"},
+//   {name: ScoreMode.Order, description: "Reihenfolge"}];
+
+type SliderProps = {
+  name: string,
+  description: string,
+  value: number,
+  min: number,
+  max: number,
+  onChange: (value: number) => void,
 }
 
-type GamePreferences  = {
- scoremode: string,
- playlists: string[],
- selected_playlist: string,
- content: GameContent,
+// type SliderProps = {
+//   options: MultiSliderElement[],
+//   name: string,
+//   display: string,
+//   onChange: (name: string, value: number) => void,
+// }
+
+const Slider: React.FC<SliderProps> =
+  ({name, description, value, min, max, onChange}) => {
+    return (
+      <div>
+        <input type="range" value={value} name={name} min={min} max={max} step={1}
+               onChange={(e) => onChange(Number(e.target.value))}/>
+        {description}: {value}s
+      </div>
+    );
+  }
+
+type GamePreferences = {
+  scoremode: string,
+  playlists: string[],
+  selected_playlist: string,
+  time_to_answer: number,
+  time_between_answers: number,
+  time_before_round: number,
 }
 
-type AdminViewProps = {
-  timediff: number,
-  exit: () => void
-}
-
-export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
+export const AdminView: React.FC = () => {
   const [preferences, setPreferences] = useState<GamePreferences | null>(null);
 
   const parseResponse = (promise: Promise<Response>) => {
@@ -46,6 +80,8 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
 
   useEffect(() => {
     parseResponse(fetch("/get_preferences"));
+    const interval = setInterval(() => parseResponse(fetch("/get_preferences")), 2000);
+    return () => clearInterval(interval);
   }, [])
 
   const savePreference = (name: string, value: string) => {
@@ -56,10 +92,10 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
     );
   };
 
-  const startGame =  () => {
-      fetch("/start_game?playlist=" + "whatever", {
-        'method': 'POST',
-      }).then(r => console.log(r));
+  const startGame = () => {
+    fetch("/start_game", {
+      'method': 'POST',
+    }).then(r => console.log(r));
   }
 
   const stopGame = () => {
@@ -67,6 +103,31 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
       'method': 'POST',
     }).then(r => console.log(r));
   };
+
+  const spotifyLogin = () => {
+    const REACT_APP_CLIENT_ID = 'd071021f312148b38eaa0243f11a52c8';
+    const REACT_APP_REDIRECT_URL = "http://localhost:3000/redirect";
+    const scope = 'playlist-read-private user-read-private user-read-email user-read-playback-state user-top-read playlist-read-private';
+
+    const generateRandomString = function (length: number) {
+      let text = '';
+      const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+      for (var i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+      return text;
+    };
+
+    const state = generateRandomString(16);
+    const url = 'https://accounts.spotify.com/authorize'
+      + '?response_type=token'
+      + '&client_id=' + encodeURIComponent(REACT_APP_CLIENT_ID)
+      + '&scope=' + encodeURIComponent(scope)
+      + '&redirect_uri=' + encodeURIComponent(REACT_APP_REDIRECT_URL)
+      + '&state=' + encodeURIComponent(state);
+    window.location.assign(url);
+  }
 
   if (preferences) {
     return (
@@ -79,18 +140,33 @@ export const AdminView: React.FC<AdminViewProps> = ({timediff, exit}) => {
         </button>
         <SingleSelection selected={preferences.scoremode}
                          name="scoremode" display="Punktebewertung"
-                         options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)} />
+                         options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)}/>
 
-        <select onChange={(e) => savePreference("playlist", e.target.value)}>
+        <select value={preferences.selected_playlist} onChange={(e) => savePreference("playlist", e.target.value)}>
           {preferences.playlists.map((p) => {
-            return <option selected={p === preferences.selected_playlist} key={p} value={p}>{p}</option>
+            return <option key={p} value={p}>{p}</option>
           })}
         </select>
 
-        <button
-          className={'backbutton'}
-          onClick={exit}>
+        <Slider name={"time_to_answer"} description={"Zeit zum Antworten"} value={preferences.time_to_answer} min={3}
+                max={45} onChange={(v) => savePreference("time_to_answer", String(v))}/>
+        <Slider name={"time_between_answers"} description={"Zeit zwischen Antworten"}
+                value={preferences.time_between_answers} min={0}
+                max={45} onChange={(v) => savePreference("time_between_answers", String(v))}/>
+        <Slider name={"time_before_round"} description={"Zeit vor Rundenstart"} value={preferences.time_before_round}
+                min={0}
+                max={20} onChange={(v) => savePreference("time_before_round", String(v))}/>
+
+        <button onClick={(e) => {
+          e.preventDefault();
+          spotifyLogin()
+        }}>
+          Spotify verbinden
         </button>
+
+        <Link to='/'>
+          <button className={'backbutton'} />
+        </Link>
       </div>);
   } else {
     return (<h1>Lade...</h1>)

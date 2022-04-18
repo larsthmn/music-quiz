@@ -1,12 +1,12 @@
 import React from "react";
 
-export type Selection = {
+export type SingleSelectionElement = {
   name: string,
   description: string,
 }
 
 type SelectionProps = {
-  options: Selection[],
+  options: SingleSelectionElement[],
   selected: string,
   name: string,
   display: string,
@@ -20,7 +20,7 @@ export const SingleSelection: React.FC<SelectionProps> =
         <h3>{display}</h3>
         {options.map((sm) => {
           return (
-            <label key={sm.name}>
+            <label key={sm.name + selected}>
               <input defaultChecked={selected === sm.name} type="radio" value={sm.name} name={name}
                      onClick={() => onChange(sm.name)}/> {sm.description}
             </label>

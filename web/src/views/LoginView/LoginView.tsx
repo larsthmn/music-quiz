@@ -1,9 +1,14 @@
-import React, {useState} from "react";
+import React, {useContext, useState} from "react";
 import './LoginView.scss'
+import {useNavigate} from "react-router-dom";
+import {globalStateContext, GlobalStateContextType} from "../GlobalStateProvider/GlobalStateProvider";
 
-export const LoginView: React.FC<{ onSubmit: (name: string, admin: boolean) => void, username: string | null }> = ({onSubmit, username}) => {
+export const LoginView: React.FC = () => {
 
-  const [name, setName] = useState<string | null>(username);
+  const {state, updateState} = useContext(globalStateContext) as GlobalStateContextType;
+  const [name, setName] = useState<string | null>(state.user);
+
+  let nav = useNavigate();
 
   return (
     <div>
@@ -11,17 +16,15 @@ export const LoginView: React.FC<{ onSubmit: (name: string, admin: boolean) => v
       <input className="name_input" onChange={(e) => setName(e.target.value)} defaultValue={name ? name : ""}/>
       <button className={"login_button"} type="submit" onClick={
         () => {
-          if (name !== "" && name !== "admin" && name != null) {
-            onSubmit(name, false);
+          if (name !== "" && name != null) {
+            updateState({user: name});
+            nav('/game');
           }
         }
       }>Los
       </button>
-      <button className={"preferences_button"} type="submit" onClick={
-        () => {
-          onSubmit("admin", true);
-        }
-      }>Steuerung
+      <button className={"preferences_button"} type="submit" onClick={() => nav('/control')}>
+        Steuerung
       </button>
     </div>
   )

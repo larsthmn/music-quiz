@@ -30,10 +30,14 @@ fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   r.tx_commands.send(GameCommand::StartGame);
 }
 
-#[post("/set?<scoremode>&<playlist>")]
+#[post("/set?<scoremode>&<playlist>&<time_to_answer>&<time_between_answers>&<time_before_round>&<spotify_token>")]
 fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
                   scoremode: Option<ScoreMode>,
-                  playlist: Option<String>)
+                  playlist: Option<String>,
+                  time_to_answer: Option<u32>,
+                  time_between_answers: Option<u32>,
+                  time_before_round: Option<u32>,
+                  spotify_token: Option<String>)
                   -> Json<GamePreferences> {
   let mut p = preferences.lock().unwrap();
   if let Some(sm) = scoremode {
@@ -43,6 +47,22 @@ fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
   if let Some(pl) = playlist {
     println!("set playlist to {}", pl);
     p.selected_playlist = pl;
+  }
+  if let Some(t) = time_to_answer {
+    println!("set time_to_answer to {}", t);
+    p.time_to_answer = t;
+  }
+  if let Some(t) = time_between_answers {
+    println!("set time_between_answers to {}", t);
+    p.time_between_answers = t;
+  }
+  if let Some(t) = time_before_round {
+    println!("set time_before_round to {}", t);
+    p.time_before_round = t;
+  }
+  if let Some(st) = spotify_token {
+    println!("set spotify_token to {}", st);
+    p.spotify_token = st;
   }
   Json(p.clone())
 }
