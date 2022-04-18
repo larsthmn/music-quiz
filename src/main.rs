@@ -14,6 +14,7 @@ use crate::spotify::SpotifyAuthData;
 mod game;
 mod quiz;
 mod spotify;
+mod types;
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
