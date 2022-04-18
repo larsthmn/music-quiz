@@ -2,8 +2,9 @@ use crate::game::{Question, AnswerExposed};
 use rand::distributions::{Standard, Distribution};
 use rand::{random, Rng, thread_rng};
 use rand::seq::SliceRandom;
+use rspotify::AuthCodeSpotify;
+use rspotify::clients::OAuthClient;
 use crate::quiz::AskedElement::{Artist, Title};
-use crate::spotify::SpotifyAuthData;
 
 const ANSWER_COUNT: u32 = 4;
 
@@ -35,16 +36,12 @@ pub struct SongQuiz<'a> {
   // questions exposed for Quiz trait
   questions: Vec<Question>,
 
-  spotify_auth_data: &'a SpotifyAuthData,
+  spotify: &'a AuthCodeSpotify,
 }
 
 impl <'a> SongQuiz<'a> {
-  pub fn new(auth: &'a SpotifyAuthData) -> SongQuiz {
-    SongQuiz { songs: vec![], questions: vec![], spotify_auth_data: auth }
-  }
-
-  pub fn set_auth_data(&mut self, auth: &'a SpotifyAuthData) {
-    self.spotify_auth_data = auth;
+  pub fn new(auth: &'a AuthCodeSpotify) -> SongQuiz {
+    SongQuiz { songs: vec![], questions: vec![], spotify: auth }
   }
 }
 
@@ -52,6 +49,14 @@ impl<'a> Quiz for SongQuiz<'a> {
   fn generate_questions(&mut self, count: u32) {
     let mut songs: Vec<SongQuestion> = vec![];
     let mut questions: Vec<Question> = vec![];
+
+    let playlists = self.spotify.current_user_playlists();
+    for playlist in playlists {
+      if let Ok(p) = playlist {
+        println!("{:?}", p);
+      }
+    }
+
     for i in 0..count {
       let asked: AskedElement = random();
       songs.push(SongQuestion {
@@ -86,7 +91,7 @@ impl<'a> Quiz for SongQuiz<'a> {
     if index > self.songs.len() {
       Err(())
     } else {
-      println!("Begin question {} {} - {} with token {:?}", index, self.songs[index].artist, self.songs[index].title, self.spotify_auth_data);
+      println!("Begin question {} {} - {} with token {:?}", index, self.songs[index].artist, self.songs[index].title, self.spotify);
       Ok(())
     }
   }

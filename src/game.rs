@@ -3,10 +3,10 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rocket::serde::{Deserialize, Serialize};
+use rspotify::AuthCodeSpotify;
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{Quiz, SongQuiz};
 use crate::Ready;
-use crate::spotify::SpotifyAuthData;
 
 #[derive(Serialize, Clone)]
 pub struct UserAnswerExposed {
@@ -72,7 +72,8 @@ pub struct GameState {
 
 // Internal game management structure
 pub struct GameReferences {
-  pub tx_commands: mpsc::Sender<GameCommand>
+  pub tx_commands: mpsc::Sender<GameCommand>,
+  pub spotify_client: AuthCodeSpotify
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField)]
@@ -90,8 +91,6 @@ pub struct GamePreferences {
   pub time_to_answer: u32,
   pub time_between_answers: u32,
   pub time_before_round: u32,
-  #[serde(skip_serializing)]
-  pub spotify_token: SpotifyAuthData
 }
 
 impl GamePreferences {
@@ -102,8 +101,7 @@ impl GamePreferences {
       selected_playlist: "".to_string(),
       time_to_answer: 5,
       time_before_round: 3,
-      time_between_answers: 5,
-      spotify_token: SpotifyAuthData::new()
+      time_between_answers: 5
     }
   }
 }
@@ -183,13 +181,13 @@ fn get_epoch_ms() -> u64 {
 ///
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
-fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences) {
+fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) {
   let mut s = state.lock().unwrap();
   let next_timeout = prepare_round(&mut s, &pref);
   drop(s);
 
   // Generate questions to be answered
-  let mut quiz = SongQuiz::new(&pref.spotify_token);
+  let mut quiz = SongQuiz::new(&spotify);
   quiz.generate_questions(4);
 
   // Wait for game start or stopping game
@@ -326,7 +324,8 @@ fn wait_for_command(rx: &Receiver<GameCommand>, command: GameCommand, until: u64
 }
 
 /// Main loop for the game thread. `rx` is used to receive game commands.
-pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>) {
+pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>,
+           references: Arc<Mutex<GameReferences>>) {
 
   // Wait for start by admin?
   let mut s = state.lock().unwrap();
@@ -346,7 +345,10 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
     // todo: validate validity of spotify auth and maybe refresh
     let pref = p_mut.clone();
     drop(p_mut);
-    game_round(&state, &rx, pref);
+    let r_mut = references.lock().unwrap();
+    let spotify = r_mut.spotify_client.clone();
+    drop(r_mut);
+    game_round(&state, &rx, pref, spotify);
     // After the round the results are available to be fetched until the next round is started
 
     println!("Round ended");
