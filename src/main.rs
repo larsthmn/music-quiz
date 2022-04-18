@@ -9,11 +9,12 @@ use rocket::State;
 use crate::AppStatus::{Ready};
 use crate::game::{AnswerFromUser, AppStatus, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::spotify::SpotifyAuthData;
+use rspotify::{AuthCodeSpotify, Credentials, OAuth, scopes};
+use rspotify::clients::OAuthClient;
 
 mod game;
 mod quiz;
-mod spotify;
+// mod spotify;
 mod types;
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
@@ -33,11 +34,17 @@ fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   r.tx_commands.send(GameCommand::StartGame);
 }
 
-#[post("/authorize_spotify", format = "json", data ="<data>")]
-fn authorize_spotify(preferences: &State<Arc<Mutex<GamePreferences>>>, data: Json<SpotifyAuthData>) {
-  let mut p = preferences.lock().unwrap();
-  println!("received spotify auth data: {:?}", data);
-  p.spotify_token = data.into_inner();
+#[post("/authorize_spotify?<code>")]
+fn authorize_spotify(references: &State<Arc<Mutex<GameReferences>>>, code: Option<String>) {
+  let mut r = references.lock().unwrap();
+  println!("received spotify auth code: {:?}", code);
+  if let Some(c) = code {
+    let result = r.spotify_client.request_token(c.as_str());
+    match result {
+      Ok(_) => println!("Got auth token!"),
+      Err(e) => eprintln!("Could not get auth token {:?}", e)
+    }
+  }
 }
 
 #[post("/set?<scoremode>&<playlist>&<time_to_answer>&<time_between_answers>&<time_before_round>")]
@@ -128,12 +135,27 @@ fn get_time(now: Option<u64>) -> Json<TimeAnswer> {
 async fn main() {
   let gamestate = Arc::new(Mutex::new(GameState::new()));
   let (tx, rx) = mpsc::channel::<GameCommand>();
+  let creds = Credentials::from_env().expect("Credentials not in .env-File");
   let references = Arc::new(Mutex::new(
-    GameReferences { tx_commands: tx }));
+    GameReferences {
+      tx_commands: tx,
+      spotify_client: AuthCodeSpotify::new(creds,
+                                           OAuth::from_env(
+                                             scopes!("user-modify-playback-state",
+                                               "user-read-playback-state",
+                                               "user-read-currently-playing",
+                                               "playlist-read-collaborative",
+                                               "playlist-read-private",
+                                               "app-remote-control",
+                                               "streaming",
+                                               "user-read-email",
+                                               "user-read-private"))
+                                             .expect("Credentials not in .env-File")) }));
   let preferences = Arc::new(Mutex::new(GamePreferences::new()));
   let g = gamestate.clone();
   let p = preferences.clone();
-  let handle = thread::spawn(move || { game::run(g, rx, p) });
+  let r = references.clone();
+  let handle = thread::spawn(move || { game::run(g, rx, p, r) });
 
   // Start HTTP interface
   rocket::build()

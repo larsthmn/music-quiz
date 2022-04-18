@@ -5,7 +5,7 @@ const REACT_APP_CLIENT_SECRET = 'e7b6900b04b74d28a08e0e56f6c84c41';
 const REACT_APP_REDIRECT_URL = "http://localhost:3000/redirect";
 
 export const spotifyLogin = () => {
-  const scope = 'playlist-read-private user-read-private user-read-email user-read-playback-state user-top-read playlist-read-private';
+  const scope = 'user-modify-playback-state user-read-playback-state user-read-currently-playing playlist-read-collaborative playlist-read-private app-remote-control streaming user-read-email user-read-private';
 
   const generateRandomString = function (length: number) {
     let text = '';

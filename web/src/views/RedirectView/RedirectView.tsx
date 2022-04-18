@@ -32,13 +32,17 @@ export const RedirectView = () => {
   const code = params.get('code');
   if (code) {
     console.log("received code " + code);
-    spotifyGetAccessToken(code)
-      .then(
-        (response) => response.text())
-      .then(
-        (text) => sendToBackend(text))
+    fetch("/authorize_spotify?code=" + code, {
+      'method': 'POST'})
       .catch((reason) => console.error("Error on getting/forwarding access token" + reason))
       .finally(() => nav('/control'));
+    // spotifyGetAccessToken(code)
+    //   .then(
+    //     (response) => response.text())
+    //   .then(
+    //     (text) => sendToBackend(text))
+    //   .catch((reason) => console.error("Error on getting/forwarding access token" + reason))
+    //   .finally(() => nav('/control'));
   }
 
   // todo (maybe later): verify state is the same
