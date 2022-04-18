@@ -4,14 +4,16 @@ extern crate rocket;
 use std::sync::{Arc, mpsc, Mutex};
 use std::thread;
 use rocket::fs::FileServer;
-use rocket::serde::{json::Json, Serialize};
+use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use crate::AppStatus::{Ready};
 use crate::game::{AnswerFromUser, AppStatus, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::spotify::SpotifyAuthData;
 
 mod game;
 mod quiz;
+mod spotify;
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
@@ -19,7 +21,7 @@ mod quiz;
 fn select_answer(state: &State<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUser>) -> Json<GameState> {
   let mut s = state.lock().unwrap();
   if let Err(err) = s.give_answer(answer.into_inner()) {
-    eprintln!("Error on giving answer: {}", err);
+    eprintln!("Error on giving answer: {:?}", err);
   }
   Json(s.clone())
 }
@@ -30,18 +32,24 @@ fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   r.tx_commands.send(GameCommand::StartGame);
 }
 
-#[post("/set?<scoremode>&<playlist>&<time_to_answer>&<time_between_answers>&<time_before_round>&<spotify_token>")]
+#[post("/authorize_spotify", format = "json", data ="<data>")]
+fn authorize_spotify(preferences: &State<Arc<Mutex<GamePreferences>>>, data: Json<SpotifyAuthData>) {
+  let mut p = preferences.lock().unwrap();
+  println!("received spotify auth data: {:?}", data);
+  p.spotify_token = data.into_inner();
+}
+
+#[post("/set?<scoremode>&<playlist>&<time_to_answer>&<time_between_answers>&<time_before_round>")]
 fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
                   scoremode: Option<ScoreMode>,
                   playlist: Option<String>,
                   time_to_answer: Option<u32>,
                   time_between_answers: Option<u32>,
-                  time_before_round: Option<u32>,
-                  spotify_token: Option<String>)
+                  time_before_round: Option<u32>)
                   -> Json<GamePreferences> {
   let mut p = preferences.lock().unwrap();
   if let Some(sm) = scoremode {
-    println!("set scoremode to {}", sm);
+    println!("set scoremode to {:?}", sm);
     p.scoremode = sm;
   }
   if let Some(pl) = playlist {
@@ -59,10 +67,6 @@ fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
   if let Some(t) = time_before_round {
     println!("set time_before_round to {}", t);
     p.time_before_round = t;
-  }
-  if let Some(st) = spotify_token {
-    println!("set spotify_token to {}", st);
-    p.spotify_token = st;
   }
   Json(p.clone())
 }
@@ -133,7 +137,7 @@ async fn main() {
   // Start HTTP interface
   rocket::build()
     .mount("/", routes![select_answer,
-            get_state, get_time, start_game, stop_game, set_preference, get_preferences, set_preferences])
+            get_state, get_time, start_game, stop_game, set_preference, get_preferences, set_preferences, authorize_spotify])
     .mount("/static", FileServer::from("static"))
     .manage(gamestate)
     .manage(references)

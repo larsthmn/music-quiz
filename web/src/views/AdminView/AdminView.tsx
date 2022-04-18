@@ -1,8 +1,7 @@
-import React, {MouseEventHandler, useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import './AdminView.scss';
 import {SingleSelection, SingleSelectionElement} from "../../components/SingleSelection";
-import {MultiSlider, MultiSliderElement} from "../../components/MultiSlider";
-import SpotifyLogin from "../../spotifyLogin";
+import {spotifyLogin} from "../../spotifyLogin";
 import {Link} from "react-router-dom";
 
 enum ScoreMode {
@@ -104,31 +103,6 @@ export const AdminView: React.FC = () => {
     }).then(r => console.log(r));
   };
 
-  const spotifyLogin = () => {
-    const REACT_APP_CLIENT_ID = 'd071021f312148b38eaa0243f11a52c8';
-    const REACT_APP_REDIRECT_URL = "http://localhost:3000/redirect";
-    const scope = 'playlist-read-private user-read-private user-read-email user-read-playback-state user-top-read playlist-read-private';
-
-    const generateRandomString = function (length: number) {
-      let text = '';
-      const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
-      for (var i = 0; i < length; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-      }
-      return text;
-    };
-
-    const state = generateRandomString(16);
-    const url = 'https://accounts.spotify.com/authorize'
-      + '?response_type=token'
-      + '&client_id=' + encodeURIComponent(REACT_APP_CLIENT_ID)
-      + '&scope=' + encodeURIComponent(scope)
-      + '&redirect_uri=' + encodeURIComponent(REACT_APP_REDIRECT_URL)
-      + '&state=' + encodeURIComponent(state);
-    window.location.assign(url);
-  }
-
   if (preferences) {
     return (
       <div className="admin-container">
@@ -142,20 +116,25 @@ export const AdminView: React.FC = () => {
                          name="scoremode" display="Punktebewertung"
                          options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)}/>
 
-        <select value={preferences.selected_playlist} onChange={(e) => savePreference("playlist", e.target.value)}>
-          {preferences.playlists.map((p) => {
-            return <option key={p} value={p}>{p}</option>
-          })}
-        </select>
+        <div>
+          Playlist:
+          <select value={preferences.selected_playlist} onChange={(e) => savePreference("playlist", e.target.value)}>
+            {preferences.playlists.map((p) => {
+              return <option key={p} value={p}>{p}</option>
+            })}
+          </select>
+        </div>
 
-        <Slider name={"time_to_answer"} description={"Zeit zum Antworten"} value={preferences.time_to_answer} min={3}
-                max={45} onChange={(v) => savePreference("time_to_answer", String(v))}/>
-        <Slider name={"time_between_answers"} description={"Zeit zwischen Antworten"}
-                value={preferences.time_between_answers} min={0}
-                max={45} onChange={(v) => savePreference("time_between_answers", String(v))}/>
-        <Slider name={"time_before_round"} description={"Zeit vor Rundenstart"} value={preferences.time_before_round}
-                min={0}
-                max={20} onChange={(v) => savePreference("time_before_round", String(v))}/>
+        <div>
+          <Slider name={"time_to_answer"} description={"Zeit zum Antworten"} value={preferences.time_to_answer} min={3}
+                  max={45} onChange={(v) => savePreference("time_to_answer", String(v))}/>
+          <Slider name={"time_between_answers"} description={"Zeit zwischen Antworten"}
+                  value={preferences.time_between_answers} min={0}
+                  max={45} onChange={(v) => savePreference("time_between_answers", String(v))}/>
+          <Slider name={"time_before_round"} description={"Zeit vor Rundenstart"} value={preferences.time_before_round}
+                  min={0}
+                  max={20} onChange={(v) => savePreference("time_before_round", String(v))}/>
+        </div>
 
         <button onClick={(e) => {
           e.preventDefault();
