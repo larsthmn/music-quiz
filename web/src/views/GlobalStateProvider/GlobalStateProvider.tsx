@@ -17,15 +17,11 @@ export const globalStateContext = React.createContext<GlobalStateContextType | n
 
 export const GlobalStateProvider: React.FC<React.ReactNode> = ({children}) => {
   const loadedState = {...defaultGlobalState, ...JSON.parse(window.localStorage.getItem(LOCALSTORE_STATE) || "{}")}
-  console.log("load");
-  console.log(loadedState);
   const [state, setState] = React.useState(loadedState);
 
   const updateState = (newState: object) => {
     const combined = {...state, ...newState};
     setState(combined);
-    console.log("save");
-    console.log(combined);
     window.localStorage.setItem(LOCALSTORE_STATE, JSON.stringify(combined));
   }
 

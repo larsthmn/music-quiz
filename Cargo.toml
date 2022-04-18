@@ -13,3 +13,4 @@ thiserror = "1.0.30"
 strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
 rand = "0.8.5"
+reqwest = { version = "0.11.10", features = ["blocking"]}

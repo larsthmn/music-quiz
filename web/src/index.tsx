@@ -15,7 +15,7 @@ ReactDOM.render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LoginView />} />
-        <Route path="/game" element={<GameView username={"hahaha"} timediff={0}/>} />
+        <Route path="/game" element={<GameView/>} />
         <Route path="/control" element={<AdminView />} />
         <Route path="/redirect" element={<RedirectView />} />
       </Routes>

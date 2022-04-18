@@ -6,6 +6,7 @@ use rocket::serde::{Deserialize, Serialize};
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{Quiz, SongQuiz};
 use crate::Ready;
+use crate::spotify::SpotifyAuthData;
 
 #[derive(Serialize, Clone)]
 pub struct UserAnswerExposed {
@@ -69,12 +70,12 @@ pub struct GameState {
   given_answers: Vec<UserAnswerExposed>,
 }
 
-// Internal game management structure (todo: probably useless, extract tx and remove struct)
+// Internal game management structure
 pub struct GameReferences {
-  pub tx_commands: mpsc::Sender<GameCommand>,
+  pub tx_commands: mpsc::Sender<GameCommand>
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, strum_macros::Display, FromFormField)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField)]
 pub enum ScoreMode {
   Time,
   WrongFalse,
@@ -89,7 +90,8 @@ pub struct GamePreferences {
   pub time_to_answer: u32,
   pub time_between_answers: u32,
   pub time_before_round: u32,
-  pub spotify_token: String,
+  #[serde(skip_serializing)]
+  pub spotify_token: SpotifyAuthData
 }
 
 impl GamePreferences {
@@ -101,7 +103,7 @@ impl GamePreferences {
       time_to_answer: 5,
       time_before_round: 3,
       time_between_answers: 5,
-      spotify_token: "".to_string(),
+      spotify_token: SpotifyAuthData::new()
     }
   }
 }
@@ -187,7 +189,7 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: G
   drop(s);
 
   // Generate questions to be answered
-  let mut quiz = SongQuiz::new();
+  let mut quiz = SongQuiz::new(&pref.spotify_token);
   quiz.generate_questions(4);
 
   // Wait for game start or stopping game
@@ -340,8 +342,8 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
     println!("Start round");
     wait_for_game_start(&rx);
 
-    // generate questions, connect to spotify, prepare everything for the round
     let p_mut = preferences.lock().unwrap();
+    // todo: validate validity of spotify auth and maybe refresh
     let pref = p_mut.clone();
     drop(p_mut);
     game_round(&state, &rx, pref);
