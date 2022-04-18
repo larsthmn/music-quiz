@@ -26,6 +26,8 @@ export const RedirectView = () => {
     console.error("auth error: " + error)
   }
 
+  // todo: error handling
+
   // Received code, this can be used to request an access token
   const code = params.get('code');
   if (code) {
@@ -44,13 +46,7 @@ export const RedirectView = () => {
   console.log(parsedHash);
 
   let nav = useNavigate();
-  // fetch('/set?spotify_token=' + parsedHash.access_token, {'method': 'POST'})
-  //   .then(
-  //     () => nav('/control'),
-  //     () => {
-  //     console.log("Error on forwarding token to backend");
-  //     nav('/control');
-  //   });
+
 
   return (
     <h1>Weiterleiten...</h1>
