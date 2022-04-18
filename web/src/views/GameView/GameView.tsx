@@ -3,45 +3,28 @@ import './GameView.scss';
 import {GameButton} from "../../components/GameButton";
 import {TimeBar} from "../../components/TimeBar";
 import {ResultView} from "../ResultView/ResultView";
+import { Link } from 'react-router-dom';
+import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
 
-type GameProps = {
-  username: string,
-  exit: () => void,
-  timediff: number // local time - backend time
-}
-
+const TIME_SYNC_PERIOD = 20000;
 const MIN_POLL_RATE = 150;
 const MAX_POLL_RATE = 10000;
 
-export class GameView extends React.Component<GameProps, any> {
+export class GameView extends React.Component<any, any> {
   private timer: ReturnType<typeof setTimeout> | null;
   private mounted: boolean;
+  private interval: ReturnType<typeof setInterval> | null;
+  private timediff;
 
-  constructor(props: GameProps) {
+  static contextType = globalStateContext;
+
+  constructor(props: any) {
     super(props);
     this.state = {data: {status: "Shutdown"}};
-    // this.state = {
-    //   data:
-    //     {
-    //       "status": "InGameAnswerPending",
-    //       "action_start": 1649792129360,
-    //       "next_action": 1649792134360,
-    //       "current_question": {
-    //         "text": "Frage 1",
-    //         "answers": [{"text": "A11 richtig", "id": 11}, {"text": "A12 falsch", "id": 12}, {
-    //           "text": "A13 falsch",
-    //           "id": 13
-    //         }, {"text": "A14 falsch", "id": 14}],
-    //         "correct":12,
-    //         "index": 0,
-    //         "total_questions": 3
-    //       },
-    //       "players": [],
-    //       "given_answers": [{"answer_id": 11, "user": "aaaa", "ts": 1649792130575}]
-    //     }
-    // };
     this.mounted = false;
     this.timer = null;
+    this.interval = null;
+    this.timediff = 0;
   }
 
   poll() {
@@ -63,7 +46,7 @@ export class GameView extends React.Component<GameProps, any> {
       .then((data) => {
         this.setState({data: data});
         const timeout: number = Math.max(MIN_POLL_RATE,
-          Math.min(data.next_action - Date.now() + this.props.timediff, MAX_POLL_RATE));
+          Math.min(data.next_action - Date.now() + this.timediff, MAX_POLL_RATE));
         console.log("parsed data, timeout = " + timeout);
         this.timer = setTimeout(() => this.poll(), timeout);
       }, () => {
@@ -73,6 +56,20 @@ export class GameView extends React.Component<GameProps, any> {
   }
 
   componentDidMount() {
+    this.interval = setInterval(() => {
+      const now = Date.now();
+      fetch("/get_time?now=" + now)
+        .then((response) => response.json(), () => {
+          console.log("error on parsing json");
+        })
+        .then((data) => {
+          console.log("timediff " + data.diff_receive + "ms");
+          // todo: better time synch, use roundtrip time or something
+          this.timediff = data.diff_receive;
+        }, () => {
+          console.log("error on getting time");
+        });
+    }, TIME_SYNC_PERIOD);
     this.mounted = true;
     this.poll();
   }
@@ -82,14 +79,19 @@ export class GameView extends React.Component<GameProps, any> {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
     this.mounted = false;
   }
 
   onClick(id: any) {
+    const {state} = this.context;
     const data = {
       "id": id,
-      "timestamp": Date.now() - this.props.timediff,
-      "user": this.props.username
+      "timestamp": Date.now() - this.timediff,
+      "user": state.user
     }
     this.parseResponse(fetch("/press_button", {
       'method': 'POST',
@@ -103,6 +105,7 @@ export class GameView extends React.Component<GameProps, any> {
 
   render() {
     const {data} = this.state;
+    const {state} = this.context;
     let content = <h2>Unbekannter Spielstatus...</h2>;
 
     if (data != null) {
@@ -110,7 +113,7 @@ export class GameView extends React.Component<GameProps, any> {
         case "InGameAnswerPending":
         case "InGameWaitForNextQuestion":
           const buttons = data.current_question.answers.map((answer: { id: any; given_answers: any[] | null; text: string; }) => {
-            const is_selected: boolean = data.given_answers?.find((x: any) => x.user === this.props.username && answer.id === x.answer_id);
+            const is_selected: boolean = data.given_answers?.find((x: any) => x.user === state.user && answer.id === x.answer_id);
             const is_correct_answer: boolean = answer.id === data.current_question.correct;
             const is_correct_known: boolean = data.current_question.correct !== 0;
             return (
@@ -136,7 +139,7 @@ export class GameView extends React.Component<GameProps, any> {
               </h2>
               <div className={'button_container'}>
                 <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
-                         elapsed={Date.now() - data.action_start - this.props.timediff}
+                         elapsed={Date.now() - data.action_start - this.timediff}
                          colorful={data.status === "InGameAnswerPending"}/>
                 {buttons}
               </div>
@@ -156,7 +159,7 @@ export class GameView extends React.Component<GameProps, any> {
             <div>
               <h2>Bereitmachen</h2>
               <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
-                       elapsed={Date.now() - data.action_start - this.props.timediff}
+                       elapsed={Date.now() - data.action_start - this.timediff}
                        colorful={true}/>
             </div>;
           break;
@@ -167,17 +170,15 @@ export class GameView extends React.Component<GameProps, any> {
           break;
       }
     }
-
     return (
       <div>
         <div>
           <h1>
-            Hey {this.props.username}!
+            Hey {state.user}!
           </h1>
-          <button
-            className={'backbutton'}
-            onClick={this.props.exit}>
-          </button>
+          <Link to='/'>
+            <button className={'backbutton'} />
+          </Link>
         </div>
         {content}
       </div>

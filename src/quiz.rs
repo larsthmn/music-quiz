@@ -92,37 +92,42 @@ impl Quiz for SongQuiz {
       Ok(())
     }
   }
+
+  fn get_questions(&self) -> &Vec<Question> {
+    &self.questions
+  }
 }
 
 pub trait Quiz {
   fn generate_questions(&mut self, count: u32);
   fn begin_question_action(&self, index: usize) -> Result<(), ()>;
   fn stop_question_action(&self, index: usize) -> Result<(), ()>;
+  fn get_questions(&self) -> &Vec<Question>;
 }
 
-pub struct SongQuizIterator<'a> {
-  songquiz: &'a SongQuiz,
-  index: usize,
-}
+// pub struct SongQuizIterator<'a> {
+//   songquiz: &'a SongQuiz,
+//   index: usize,
+// }
 
-impl<'a> IntoIterator for &'a SongQuiz {
-  type Item = Question;
-  type IntoIter = SongQuizIterator<'a>;
-
-  fn into_iter(self) -> Self::IntoIter {
-    SongQuizIterator { songquiz: self, index: 0 }
-  }
-}
-
-impl<'a> Iterator for SongQuizIterator<'a> {
-  type Item = Question;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    if self.index < self.songquiz.questions.len() {
-      self.index += 1;
-      Some(self.songquiz.questions[self.index - 1].clone())
-    } else {
-      None
-    }
-  }
-}
+// impl<'a> IntoIterator for &'a SongQuiz {
+//   type Item = Question;
+//   type IntoIter = SongQuizIterator<'a>;
+//
+//   fn into_iter(self) -> Self::IntoIter {
+//     SongQuizIterator { songquiz: self, index: 0 }
+//   }
+// }
+//
+// impl<'a> Iterator for SongQuizIterator<'a> {
+//   type Item = Question;
+//
+//   fn next(&mut self) -> Option<Self::Item> {
+//     if self.index < self.songquiz.questions.len() {
+//       self.index += 1;
+//       Some(self.songquiz.questions[self.index - 1].clone())
+//     } else {
+//       None
+//     }
+//   }
+// }

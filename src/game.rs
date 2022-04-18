@@ -7,12 +7,6 @@ use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{Quiz, SongQuiz};
 use crate::Ready;
 
-// todo: as param, configure by admin
-const TIME_BETWEEN_ROUNDS: Duration = Duration::from_secs(5);
-const TIME_TO_ANSWER: Duration = Duration::from_secs(5);
-const TIME_BETWEEN_ANSWERS: Duration = Duration::from_secs(3);
-const TIME_BEFORE_ROUND: Duration = Duration::from_secs(3);
-
 #[derive(Serialize, Clone)]
 pub struct UserAnswerExposed {
   answer_id: u32,
@@ -92,7 +86,10 @@ pub struct GamePreferences {
   pub scoremode: ScoreMode,
   pub playlists: Vec<String>,
   pub selected_playlist: String,
-  pub content: GameContent,
+  pub time_to_answer: u32,
+  pub time_between_answers: u32,
+  pub time_before_round: u32,
+  pub spotify_token: String,
 }
 
 impl GamePreferences {
@@ -101,7 +98,10 @@ impl GamePreferences {
       scoremode: ScoreMode::WrongFalse,
       playlists: vec!["P1".to_string(), "P2".to_string()], // todo: Change back to vec![]
       selected_playlist: "".to_string(),
-      content: GameContent::new()
+      time_to_answer: 5,
+      time_before_round: 3,
+      time_between_answers: 5,
+      spotify_token: "".to_string(),
     }
   }
 }
@@ -179,10 +179,11 @@ fn get_epoch_ms() -> u64 {
 
 /// Executes a game round:
 ///
-/// Init => for each `question` [set question => wait for answer] => show results
-fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: &Arc<Mutex<GamePreferences>>) {
+/// Init => for each `question` [set question => wait for answer] => show results.
+/// Preferences stay the same for the whole round.
+fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences) {
   let mut s = state.lock().unwrap();
-  let next_timeout = prepare_round(&mut s);
+  let next_timeout = prepare_round(&mut s, &pref);
   drop(s);
 
   // Generate questions to be answered
@@ -192,12 +193,12 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: &
   // Wait for game start or stopping game
   if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
     // Init results of this round
-    for question in quiz.into_iter() {
+    for question in quiz.get_questions() {
       quiz.begin_question_action(question.index as usize);
 
       // Set new question
       let mut s = state.lock().unwrap();
-      let next_timeout = set_question(question.clone(), &mut s);
+      let next_timeout = set_question(question.clone(), &mut s, &pref);
       drop(s);
 
       // Wait for users to answer or stopping game
@@ -209,9 +210,7 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: &
 
       // Evaluate answers
       let mut s = state.lock().unwrap();
-      let p = pref.lock().unwrap();
-      let next_timeout = finish_question(&question, &mut s, &p);
-      drop(p);
+      let next_timeout = finish_question(&question, &mut s, &pref);
       drop(s);
 
       // Wait for next question or stopping game
@@ -227,13 +226,13 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: &
   drop(s);
 }
 
-fn prepare_round(s: &mut GameState) -> u64 {
+fn prepare_round(s: &mut GameState, pref: &GamePreferences) -> u64 {
   s.players = vec![];
   s.current_question = None;
   s.status = AppStatus::BeforeGame;
   let now = get_epoch_ms();
   s.action_start = now;
-  s.next_action = now + TIME_BEFORE_ROUND.as_millis() as u64;
+  s.next_action = now + (pref.time_before_round * 1000) as u64;
   s.given_answers = vec![];
   let next_timeout = s.next_action;
   next_timeout
@@ -258,7 +257,7 @@ fn finish_question(question: &Question, s: &mut GameState, pref: &GamePreference
   s.players.sort_by(|a, b| b.points.cmp(&a.points));
   let now = s.next_action;
   s.action_start = now;
-  s.next_action = now + TIME_BETWEEN_ANSWERS.as_millis() as u64;
+  s.next_action = now + (pref.time_between_answers * 1000) as u64;
   let next_timeout = s.next_action;
   next_timeout
 }
@@ -294,13 +293,13 @@ fn calc_points(s: &mut GameState, pref: &GamePreferences) {
 }
 
 /// Set the current question to be answered
-fn set_question(mut question: Question, s: &mut GameState) -> u64 {
+fn set_question(mut question: Question, s: &mut GameState, pref: &GamePreferences) -> u64 {
   println!("Question no {} / {}", question.index + 1, question.total_questions);
   question.correct = 0;
   s.current_question = Some(question);
   let now = s.next_action;
   s.action_start = now;
-  s.next_action = now + TIME_TO_ANSWER.as_millis() as u64;
+  s.next_action = now + (pref.time_to_answer * 1000) as u64;
   s.status = AppStatus::InGameAnswerPending;
   s.given_answers = vec![];
   s.next_action
@@ -331,13 +330,10 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
   let mut s = state.lock().unwrap();
   s.status = Ready;
   s.players = vec![];
-  let now = get_epoch_ms();
-  s.action_start = now;
-  s.next_action = now + TIME_BETWEEN_ROUNDS.as_millis() as u64;
+  s.action_start = 0;
+  s.next_action = 0;
   s.current_question = None;
   drop(s);
-
-  //
 
   loop {
     // wait for game start
@@ -345,22 +341,13 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
     wait_for_game_start(&rx);
 
     // generate questions, connect to spotify, prepare everything for the round
-    game_round(&state, &rx, &preferences);
+    let p_mut = preferences.lock().unwrap();
+    let pref = p_mut.clone();
+    drop(p_mut);
+    game_round(&state, &rx, pref);
     // After the round the results are available to be fetched until the next round is started
 
     println!("Round ended");
-  }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct GameContent {
-  playlist: String,
-  count: u32
-}
-
-impl GameContent {
-  fn new() -> GameContent {
-    GameContent {playlist: "".to_string(), count: 5}
   }
 }
 
