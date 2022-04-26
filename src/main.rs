@@ -4,18 +4,20 @@ extern crate rocket;
 use std::sync::{Arc, mpsc, Mutex};
 use std::thread;
 use rocket::fs::FileServer;
-use rocket::serde::{json::Json, Deserialize, Serialize};
+use rocket::serde::{json::Json, Serialize};
 use rocket::State;
-use crate::AppStatus::{Ready};
-use crate::game::{AnswerFromUser, AppStatus, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
+use crate::game::{AnswerFromUser, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
 use std::time::{SystemTime, UNIX_EPOCH};
 use rspotify::{AuthCodeSpotify, Credentials, OAuth, scopes};
 use rspotify::clients::OAuthClient;
+use rusqlite::Connection;
+use crate::spotify::spotify_loop;
 
 mod game;
 mod quiz;
 // mod spotify;
 mod types;
+mod spotify;
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
@@ -131,11 +133,22 @@ fn get_time(now: Option<u64>) -> Json<TimeAnswer> {
   }
 }
 
+fn db_init(con: &Connection) -> rusqlite::Result<()> {
+  con.execute("create table if not exists spotify (
+                      id integer primary key,
+                      token text
+                   )", [])?;
+
+  Ok(())
+}
+
 #[rocket::main]
 async fn main() {
   let gamestate = Arc::new(Mutex::new(GameState::new()));
   let (tx, rx) = mpsc::channel::<GameCommand>();
   let creds = Credentials::from_env().expect("Credentials not in .env-File");
+  let db = rusqlite::Connection::open("./backend_db.sqlite3").expect("Could not open database");
+  db_init(&db).expect("Error on initialising database");
   let references = Arc::new(Mutex::new(
     GameReferences {
       tx_commands: tx,
@@ -150,12 +163,18 @@ async fn main() {
                                                "streaming",
                                                "user-read-email",
                                                "user-read-private"))
-                                             .expect("Credentials not in .env-File")) }));
+                                             .expect("Credentials not in .env-File")),
+      db,
+    }));
   let preferences = Arc::new(Mutex::new(GamePreferences::new()));
   let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
-  let handle = thread::spawn(move || { game::run(g, rx, p, r) });
+  let handle_gamethread = thread::spawn(move || { game::run(g, rx, p, r) });
+  let g = gamestate.clone();
+  let p = preferences.clone();
+  let r = references.clone();
+  let handle_spotifythread = thread::spawn(move || { spotify_loop(g, p, r) });
 
   // Start HTTP interface
   rocket::build()
@@ -168,11 +187,10 @@ async fn main() {
     .launch()
     .await.unwrap();
 
-
-  handle.join().unwrap();
+  handle_gamethread.join().unwrap();
+  handle_spotifythread.join().unwrap();
   // thread join
   println!("ende");
 }
-
 
 // für api abfragen (spotify) reqwest

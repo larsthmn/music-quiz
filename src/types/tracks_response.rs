@@ -1,5 +1,4 @@
 use rocket::serde::{Deserialize, Serialize};
-use rocket::serde::json::serde_json;
 use rocket::serde::json::Value;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

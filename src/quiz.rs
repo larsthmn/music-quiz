@@ -2,9 +2,9 @@ use crate::game::{Question, AnswerExposed};
 use rand::distributions::{Standard, Distribution};
 use rand::{random, Rng, thread_rng};
 use rand::seq::SliceRandom;
-use rspotify::AuthCodeSpotify;
-use rspotify::clients::OAuthClient;
-use crate::quiz::AskedElement::{Artist, Title};
+use rspotify::{AuthCodeSpotify};
+use rspotify::clients::{BaseClient, OAuthClient};
+use crate::spotify::CustomSpotifyChecks;
 
 const ANSWER_COUNT: u32 = 4;
 
@@ -17,14 +17,14 @@ enum AskedElement {
 impl Distribution<AskedElement> for Standard {
   fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> AskedElement {
     match rng.gen_range(0..=1) {
-      0 => Title,
-      _ => Artist
+      0 => AskedElement::Title,
+      _ => AskedElement::Artist
     }
   }
 }
 
 pub struct SongQuestion {
-  songid: u64,
+  songid: String,
   artist: String,
   title: String,
   asked: AskedElement,
@@ -46,9 +46,14 @@ impl <'a> SongQuiz<'a> {
 }
 
 impl<'a> Quiz for SongQuiz<'a> {
+  /// Generates questions from the selected playlist saved internally
   fn generate_questions(&mut self, count: u32) {
     let mut songs: Vec<SongQuestion> = vec![];
     let mut questions: Vec<Question> = vec![];
+
+    if !self.spotify.is_authenticated() {
+      return;
+    }
 
     let playlists = self.spotify.current_user_playlists();
     for playlist in playlists {
@@ -60,7 +65,7 @@ impl<'a> Quiz for SongQuiz<'a> {
     for i in 0..count {
       let asked: AskedElement = random();
       songs.push(SongQuestion {
-        songid: i as u64,
+        songid: "".to_string(),
         artist: format!("artist {}", i),
         title: format!("song {}", i),
         asked,
@@ -74,8 +79,8 @@ impl<'a> Quiz for SongQuiz<'a> {
       answers.shuffle(&mut thread_rng());
       questions.push(Question {
         text: match asked {
-          Title => "Wie heißt der Titel?".to_string(),
-          Artist => "Wie heißt der Künstler?".to_string()
+          AskedElement::Title => "Wie heißt der Titel?".to_string(),
+          AskedElement::Artist => "Wie heißt der Künstler?".to_string()
         },
         answers,
         correct: correct_uuid,
