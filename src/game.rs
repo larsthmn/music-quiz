@@ -6,7 +6,6 @@ use rocket::serde::{Deserialize, Serialize};
 use rspotify::AuthCodeSpotify;
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{Quiz, SongQuiz};
-use crate::Ready;
 
 #[derive(Serialize, Clone)]
 pub struct UserAnswerExposed {
@@ -73,7 +72,8 @@ pub struct GameState {
 // Internal game management structure
 pub struct GameReferences {
   pub tx_commands: mpsc::Sender<GameCommand>,
-  pub spotify_client: AuthCodeSpotify
+  pub spotify_client: AuthCodeSpotify,
+  pub db: rusqlite::Connection,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField)]
@@ -329,7 +329,7 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
 
   // Wait for start by admin?
   let mut s = state.lock().unwrap();
-  s.status = Ready;
+  s.status = AppStatus::Ready;
   s.players = vec![];
   s.action_start = 0;
   s.next_action = 0;
