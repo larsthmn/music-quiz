@@ -17,3 +17,7 @@ reqwest = { version = "0.11.10", features = ["blocking", "json"]}
 rspotify = { version = "0.11.5", default-features = false, features = ["client-ureq", "ureq-rustls-tls", "env-file"] }
 rusqlite = {version = "0.27.0", features = ["bundled"]}
 chrono = "0.4.19"
+simple_logger = "2.1.0"
+log = "0.4.16"
+rodio = "0.15.0"
+bytes = "1.1.0"

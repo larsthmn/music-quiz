@@ -50,3 +50,4 @@ Thumbs.db
 # Database / Configs
 *.sqlite3
 .env
+.spotify_token_cache.json

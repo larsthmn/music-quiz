@@ -54,10 +54,15 @@ const Slider: React.FC<SliderProps> =
     );
   }
 
+type Playlist = {
+  name: string,
+  id: string
+}
+
 type GamePreferences = {
   scoremode: string,
-  playlists: string[],
-  selected_playlist: string,
+  playlists: Playlist[],
+  selected_playlist: Playlist | null,
   time_to_answer: number,
   time_between_answers: number,
   time_before_round: number,
@@ -118,9 +123,9 @@ export const AdminView: React.FC = () => {
 
         <div>
           Playlist:
-          <select value={preferences.selected_playlist} onChange={(e) => savePreference("playlist", e.target.value)}>
+          <select value={preferences.selected_playlist?.id} onChange={(e) => savePreference("playlist", e.target.value)}>
             {preferences.playlists.map((p) => {
-              return <option key={p} value={p}>{p}</option>
+              return <option key={p.id} value={p.id}>{p.name}</option>
             })}
           </select>
         </div>
