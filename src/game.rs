@@ -5,11 +5,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rocket::serde::{Deserialize, Serialize};
 use rspotify::AuthCodeSpotify;
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
-use crate::quiz::{Quiz, SongQuiz};
+use crate::quiz::{QuizError, SongQuiz};
 
 #[derive(Serialize, Clone)]
 pub struct UserAnswerExposed {
-  answer_id: u32,
+  answer_id: String,
   user: String,
   ts: u64,
 }
@@ -17,14 +17,14 @@ pub struct UserAnswerExposed {
 #[derive(Serialize, Clone)]
 pub struct AnswerExposed {
   pub text: String,
-  pub id: u32,
+  pub id: String,
 }
 
 #[derive(Serialize, Clone)]
 pub struct Question {
   pub text: String,
   pub answers: Vec<AnswerExposed>,
-  pub correct: u32,
+  pub correct: Option<String>,
   pub index: i32,
   pub total_questions: u32,
 }
@@ -83,11 +83,17 @@ pub enum ScoreMode {
   Order,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Playlist {
+  pub name: String,
+  pub id: String,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GamePreferences {
   pub scoremode: ScoreMode,
-  pub playlists: Vec<String>,
-  pub selected_playlist: String,
+  pub playlists: Vec<Playlist>,
+  pub selected_playlist: Option<Playlist>,
   pub time_to_answer: u32,
   pub time_between_answers: u32,
   pub time_before_round: u32,
@@ -97,11 +103,11 @@ impl GamePreferences {
   pub fn new() -> GamePreferences {
     GamePreferences {
       scoremode: ScoreMode::WrongFalse,
-      playlists: vec!["P1".to_string(), "P2".to_string()], // todo: Change back to vec![]
-      selected_playlist: "".to_string(),
+      playlists: vec![],
+      selected_playlist: None,
       time_to_answer: 5,
       time_before_round: 3,
-      time_between_answers: 5
+      time_between_answers: 5,
     }
   }
 }
@@ -114,7 +120,7 @@ pub enum GameCommand {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AnswerFromUser {
-  id: u32,
+  id: String,
   timestamp: u64,
   user: String,
 }
@@ -151,12 +157,12 @@ impl GameState {
       }
 
       // Select answer with given ID
-      println!("Answer with ID {}", answer.id);
+      log::info!("Answer with ID {}", answer.id);
       let selected_answer = current_question.answers
         .iter_mut()
         .find(|a| a.id == answer.id);
       if let Some(ans) = selected_answer {
-        println!("User {} selected {} at {}", answer.user, ans.text, answer.timestamp);
+        log::info!("User {} selected {} at {}", answer.user, ans.text, answer.timestamp);
         self.given_answers.push(
           UserAnswerExposed { user: answer.user.clone(), ts: answer.timestamp, answer_id: answer.id });
       } else {
@@ -181,20 +187,20 @@ fn get_epoch_ms() -> u64 {
 ///
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
-fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) {
+fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
   let mut s = state.lock().unwrap();
   let next_timeout = prepare_round(&mut s, &pref);
   drop(s);
 
   // Generate questions to be answered
   let mut quiz = SongQuiz::new(&spotify);
-  quiz.generate_questions(4);
+  quiz.generate_questions(10, &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id)?;
 
   // Wait for game start or stopping game
   if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
     // Init results of this round
-    for question in quiz.get_questions() {
-      quiz.begin_question_action(question.index as usize);
+    for question in quiz.get_questions().clone() {
+      quiz.begin_question_action(question.index as usize)?;
 
       // Set new question
       let mut s = state.lock().unwrap();
@@ -224,6 +230,8 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: G
   let mut s = state.lock().unwrap();
   end_round(&mut s);
   drop(s);
+
+  Ok(())
 }
 
 fn prepare_round(s: &mut GameState, pref: &GamePreferences) -> u64 {
@@ -247,11 +255,11 @@ fn end_round(s: &mut GameState) {
 
 /// Evaluate answers of users and set game state accordingly
 fn finish_question(question: &Question, s: &mut GameState, pref: &GamePreferences) -> u64 {
-  println!("Question no {} / {} finished!", question.index + 1, question.total_questions);
+  log::info!("Question no {} / {} finished!", question.index + 1, question.total_questions);
   s.status = AppStatus::InGameWaitForNextQuestion;
   if let Some(q) = &mut s.current_question {
     // Publish correct index
-    q.correct = question.correct;
+    q.correct = question.correct.clone();
   }
   calc_points(s, pref);
   s.players.sort_by(|a, b| b.points.cmp(&a.points));
@@ -284,7 +292,7 @@ fn calc_points(s: &mut GameState, pref: &GamePreferences) {
         .find(|score| score.player == user_ans.user)
         .expect("Player must be in Vector");
       score.answers_given += 1;
-      if user_ans.answer_id == q.correct {
+      if &user_ans.answer_id == q.correct.as_ref().expect("No correct answer in calc_points") {
         score.correct += 1;
         score.points += points_if_correct;
       }
@@ -294,8 +302,8 @@ fn calc_points(s: &mut GameState, pref: &GamePreferences) {
 
 /// Set the current question to be answered
 fn set_question(mut question: Question, s: &mut GameState, pref: &GamePreferences) -> u64 {
-  println!("Question no {} / {}", question.index + 1, question.total_questions);
-  question.correct = 0;
+  log::info!("Question no {} / {}", question.index + 1, question.total_questions);
+  question.correct = None;
   s.current_question = Some(question);
   let now = s.next_action;
   s.action_start = now;
@@ -338,20 +346,22 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
 
   loop {
     // wait for game start
-    println!("Start round");
+    log::info!("Start round");
     wait_for_game_start(&rx);
 
     let p_mut = preferences.lock().unwrap();
-    // todo: validate validity of spotify auth and maybe refresh
     let pref = p_mut.clone();
     drop(p_mut);
     let r_mut = references.lock().unwrap();
     let spotify = r_mut.spotify_client.clone();
     drop(r_mut);
-    game_round(&state, &rx, pref, spotify);
+    match game_round(&state, &rx, pref, spotify) {
+      Ok(()) => log::info!("Round ended"),
+      Err(e) => log::warn!("Round ended with error: {:?}", e)
+    }
     // After the round the results are available to be fetched until the next round is started
 
-    println!("Round ended");
+
   }
 }
 
@@ -373,4 +383,22 @@ pub enum GameError {
 
   #[error("Invalid game state {0}")]
   InvalidState(AppStatus),
+
+  #[error("RuntimeError: {0}")]
+  RuntimeError(&'static str),
+
+  #[error("QuizError: {0}")]
+  QuizError(QuizError),
+}
+
+impl From<&'static str> for GameError {
+  fn from(s: &'static str) -> Self {
+    GameError::RuntimeError(s)
+  }
+}
+
+impl From<QuizError> for GameError {
+  fn from(e: QuizError) -> Self {
+    GameError::QuizError(e)
+  }
 }

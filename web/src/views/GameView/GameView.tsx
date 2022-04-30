@@ -8,7 +8,7 @@ import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
 
 const TIME_SYNC_PERIOD = 20000;
 const MIN_POLL_RATE = 150;
-const MAX_POLL_RATE = 10000;
+const MAX_POLL_RATE = 1000;
 
 export class GameView extends React.Component<any, any> {
   private timer: ReturnType<typeof setTimeout> | null;
@@ -112,10 +112,10 @@ export class GameView extends React.Component<any, any> {
       switch (data.status) {
         case "InGameAnswerPending":
         case "InGameWaitForNextQuestion":
-          const buttons = data.current_question.answers.map((answer: { id: any; given_answers: any[] | null; text: string; }) => {
+          const buttons = data.current_question.answers.map((answer: { id: string; given_answers: any[] | null; text: string; }) => {
             const is_selected: boolean = data.given_answers?.find((x: any) => x.user === state.user && answer.id === x.answer_id);
             const is_correct_answer: boolean = answer.id === data.current_question.correct;
-            const is_correct_known: boolean = data.current_question.correct !== 0;
+            const is_correct_known: boolean = data.current_question.correct !== null;
             return (
               <GameButton key={answer.id} onClick={() => {
                 this.onClick(answer.id);

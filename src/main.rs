@@ -8,10 +8,12 @@ use rocket::serde::{json::Json, Serialize};
 use rocket::State;
 use crate::game::{AnswerFromUser, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
 use std::time::{SystemTime, UNIX_EPOCH};
-use rspotify::{AuthCodeSpotify, Credentials, OAuth, scopes};
-use rspotify::clients::OAuthClient;
+use rspotify::{AuthCodeSpotify, Config, Credentials, OAuth, scopes};
+use rspotify::clients::{BaseClient, OAuthClient};
 use rusqlite::Connection;
-use crate::spotify::spotify_loop;
+use simple_logger::SimpleLogger;
+use log::LevelFilter;
+use crate::spotify::{CustomSpotifyChecks, spotify_loop};
 
 mod game;
 mod quiz;
@@ -25,7 +27,7 @@ mod spotify;
 fn select_answer(state: &State<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUser>) -> Json<GameState> {
   let mut s = state.lock().unwrap();
   if let Err(err) = s.give_answer(answer.into_inner()) {
-    eprintln!("Error on giving answer: {:?}", err);
+    log::warn!("Error on giving answer: {:?}", err);
   }
   Json(s.clone())
 }
@@ -39,12 +41,12 @@ fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
 #[post("/authorize_spotify?<code>")]
 fn authorize_spotify(references: &State<Arc<Mutex<GameReferences>>>, code: Option<String>) {
   let mut r = references.lock().unwrap();
-  println!("received spotify auth code: {:?}", code);
+  log::info!("received spotify auth code: {:?}", code);
   if let Some(c) = code {
     let result = r.spotify_client.request_token(c.as_str());
     match result {
-      Ok(_) => println!("Got auth token!"),
-      Err(e) => eprintln!("Could not get auth token {:?}", e)
+      Ok(_) => log::info!("Got auth token!"),
+      Err(e) => log::warn!("Could not get auth token {:?}", e)
     }
   }
 }
@@ -59,23 +61,25 @@ fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
                   -> Json<GamePreferences> {
   let mut p = preferences.lock().unwrap();
   if let Some(sm) = scoremode {
-    println!("set scoremode to {:?}", sm);
+    log::info!("set scoremode to {:?}", sm);
     p.scoremode = sm;
   }
-  if let Some(pl) = playlist {
-    println!("set playlist to {}", pl);
-    p.selected_playlist = pl;
+  if let Some(id) = playlist {
+    if let Some(selected_playlist) = p.playlists.iter().find(|x| x.id == id) {
+      log::info!("set playlist to {:?}", selected_playlist);
+      p.selected_playlist = Some(selected_playlist.clone());
+    }
   }
   if let Some(t) = time_to_answer {
-    println!("set time_to_answer to {}", t);
+    log::info!("set time_to_answer to {}", t);
     p.time_to_answer = t;
   }
   if let Some(t) = time_between_answers {
-    println!("set time_between_answers to {}", t);
+    log::info!("set time_between_answers to {}", t);
     p.time_between_answers = t;
   }
   if let Some(t) = time_before_round {
-    println!("set time_before_round to {}", t);
+    log::info!("set time_before_round to {}", t);
     p.time_before_round = t;
   }
   Json(p.clone())
@@ -93,8 +97,8 @@ fn set_preferences(preferences: &State<Arc<Mutex<GamePreferences>>>, received: J
 fn stop_game(references: &State<Arc<Mutex<GameReferences>>>) {
   let r = references.lock().unwrap();
   match r.tx_commands.send(GameCommand::StopGame) {
-    Err(e) => eprintln!("Game could not be stopped: {}", e),
-    Ok(_) => println!("Stopped game")
+    Err(e) => log::warn!("Game could not be stopped: {}", e),
+    Ok(_) => log::info!("Stopped game")
   }
 }
 
@@ -136,7 +140,8 @@ fn get_time(now: Option<u64>) -> Json<TimeAnswer> {
 fn db_init(con: &Connection) -> rusqlite::Result<()> {
   con.execute("create table if not exists spotify (
                       id integer primary key,
-                      token text
+                      token text,
+                      expires_at
                    )", [])?;
 
   Ok(())
@@ -144,33 +149,53 @@ fn db_init(con: &Connection) -> rusqlite::Result<()> {
 
 #[rocket::main]
 async fn main() {
+  SimpleLogger::new()
+    .with_level(LevelFilter::Info)
+    .with_module_level("rocket", LevelFilter::Warn)
+    .with_module_level("_", LevelFilter::Warn)
+    .init()
+    .unwrap();
   let gamestate = Arc::new(Mutex::new(GameState::new()));
   let (tx, rx) = mpsc::channel::<GameCommand>();
   let creds = Credentials::from_env().expect("Credentials not in .env-File");
   let db = rusqlite::Connection::open("./backend_db.sqlite3").expect("Could not open database");
   db_init(&db).expect("Error on initialising database");
+  let mut spotify_client = AuthCodeSpotify::with_config(creds,
+                                                    OAuth::from_env(
+                                                   scopes!("user-modify-playback-state",
+                                                                    "user-read-playback-state",
+                                                                    "user-read-currently-playing",
+                                                                    "playlist-read-collaborative",
+                                                                    "playlist-read-private",
+                                                                    "app-remote-control",
+                                                                    "streaming",
+                                                                    "user-read-email",
+                                                                    "user-read-private"))
+                                                   .expect("Credentials not in .env-File"),
+                                                    Config { token_cached: true, ..Default::default() });
+  match spotify_client.read_token_cache(true) {
+    Ok(token) => {
+      *spotify_client.get_token().lock().unwrap() = token;
+      match spotify_client.refresh_token() {
+        Ok(()) => log::info!("Refreshed token"),
+        Err(e) => log::warn!("Could not refresh token on start: {:?}", e)
+      }
+    },
+    Err(e) => log::warn!("Could not load token: {:?}", e)
+  }
+
   let references = Arc::new(Mutex::new(
-    GameReferences {
-      tx_commands: tx,
-      spotify_client: AuthCodeSpotify::new(creds,
-                                           OAuth::from_env(
-                                             scopes!("user-modify-playback-state",
-                                               "user-read-playback-state",
-                                               "user-read-currently-playing",
-                                               "playlist-read-collaborative",
-                                               "playlist-read-private",
-                                               "app-remote-control",
-                                               "streaming",
-                                               "user-read-email",
-                                               "user-read-private"))
-                                             .expect("Credentials not in .env-File")),
-      db,
-    }));
+    GameReferences { tx_commands: tx, spotify_client, db }));
+
   let preferences = Arc::new(Mutex::new(GamePreferences::new()));
+
+  // Spawn Game thread
   let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
   let handle_gamethread = thread::spawn(move || { game::run(g, rx, p, r) });
+
+  // Spawn spotify thread
   let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
@@ -190,7 +215,7 @@ async fn main() {
   handle_gamethread.join().unwrap();
   handle_spotifythread.join().unwrap();
   // thread join
-  println!("ende");
+  log::info!("ende");
 }
 
 // für api abfragen (spotify) reqwest
