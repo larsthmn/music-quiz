@@ -6,30 +6,36 @@ use rocket::serde::{Deserialize, Serialize};
 use rspotify::AuthCodeSpotify;
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{QuizError, SongQuiz};
+use ts_rs::TS;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, TS)]
+#[ts(export)]
 pub struct UserAnswerExposed {
   answer_id: String,
   user: String,
   ts: u64,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, TS)]
+#[ts(export)]
 pub struct AnswerExposed {
   pub text: String,
   pub id: String,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, TS)]
+#[ts(export)]
 pub struct Question {
   pub text: String,
   pub answers: Vec<AnswerExposed>,
   pub correct: Option<String>,
+  pub solution: Option<String>,
   pub index: i32,
   pub total_questions: u32,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, TS)]
+#[ts(export)]
 struct PlayerScoreAPI {
   player: String,
   points: i32,
@@ -48,7 +54,8 @@ impl PlayerScoreAPI {
   }
 }
 
-#[derive(PartialEq, Serialize, Copy, Clone, Debug, strum_macros::Display)]
+#[derive(PartialEq, Serialize, Copy, Clone, Debug, strum_macros::Display, TS)]
+#[ts(export)]
 pub enum AppStatus {
   Shutdown,
   Ready,
@@ -59,7 +66,8 @@ pub enum AppStatus {
 }
 
 // Public game management structure
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, TS)]
+#[ts(export)]
 pub struct GameState {
   status: AppStatus,
   action_start: u64,
@@ -67,7 +75,34 @@ pub struct GameState {
   current_question: Option<Question>,
   players: Vec<PlayerScoreAPI>,
   given_answers: Vec<UserAnswerExposed>,
+  hide_answers: bool
 }
+
+// #[derive(Serialize, Clone, TS)]
+// #[ts(export)]
+// pub struct GameStateExposed {
+//   status: AppStatus,
+//   action_start: u64,
+//   next_action: u64,
+//   current_question: Option<Question>,
+//   players: Vec<PlayerScoreAPI>,
+//   given_answers: Vec<UserAnswerExposed>,
+//   hide_answers: bool
+// }
+//
+// impl From<GameState> for GameStateExposed {
+//   fn from(g: GameState) -> Self {
+//     GameStateExposed {
+//       status: g.status,
+//       action_start: g.action_start,
+//       next_action: g.next_action,
+//       current_question: g.current_question,
+//       players: g.players,
+//       given_answers: g.given_answers,
+//       hide_answers: g.hide_answers
+//     }
+//   }
+// }
 
 // Internal game management structure
 pub struct GameReferences {
@@ -76,20 +111,23 @@ pub struct GameReferences {
   pub db: rusqlite::Connection,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField, TS)]
+#[ts(export)]
 pub enum ScoreMode {
   Time,
   WrongFalse,
   Order,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, TS)]
+#[ts(export)]
 pub struct Playlist {
   pub name: String,
   pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
 pub struct GamePreferences {
   pub scoremode: ScoreMode,
   pub playlists: Vec<Playlist>,
@@ -97,6 +135,9 @@ pub struct GamePreferences {
   pub time_to_answer: u32,
   pub time_between_answers: u32,
   pub time_before_round: u32,
+  pub rounds: u32,
+  pub preview_mode: bool,
+  pub hide_answers: bool
 }
 
 impl GamePreferences {
@@ -108,17 +149,22 @@ impl GamePreferences {
       time_to_answer: 5,
       time_before_round: 3,
       time_between_answers: 5,
+      rounds: 5,
+      preview_mode: false,
+      hide_answers: false
     }
   }
 }
 
-#[derive(PartialEq, Serialize, Clone, Debug, strum_macros::Display)]
+#[derive(PartialEq, Serialize, Clone, Debug, strum_macros::Display, TS)]
+#[ts(export)]
 pub enum GameCommand {
   StartGame,
   StopGame,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, TS)]
+#[ts(export)]
 pub struct AnswerFromUser {
   id: String,
   timestamp: u64,
@@ -134,6 +180,7 @@ impl GameState {
       current_question: None,
       players: vec![],
       given_answers: vec![],
+      hide_answers: false
     }
   }
 
@@ -193,14 +240,16 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: G
   drop(s);
 
   // Generate questions to be answered
-  let mut quiz = SongQuiz::new(&spotify);
-  quiz.generate_questions(10, &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id)?;
+  let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
+  quiz.generate_questions(pref.rounds, &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id)?;
 
   // Wait for game start or stopping game
   if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
     // Init results of this round
     for question in quiz.get_questions().clone() {
-      quiz.begin_question_action(question.index as usize)?;
+      if let Err(e) = quiz.begin_question_action(question.index as usize) {
+        log::warn!("Begin question failed with error: {:?}", e);
+      }
 
       // Set new question
       let mut s = state.lock().unwrap();
@@ -212,7 +261,10 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: G
         break;
       }
 
-      quiz.stop_question_action(question.index as usize);
+      if let Err(e) = quiz.stop_question_action(question.index as usize){
+        log::warn!("End question failed with error: {:?}", e);
+      }
+
 
       // Evaluate answers
       let mut s = state.lock().unwrap();
@@ -260,11 +312,13 @@ fn finish_question(question: &Question, s: &mut GameState, pref: &GamePreference
   if let Some(q) = &mut s.current_question {
     // Publish correct index
     q.correct = question.correct.clone();
+    q.solution = question.solution.clone();
   }
   calc_points(s, pref);
   s.players.sort_by(|a, b| b.points.cmp(&a.points));
   let now = s.next_action;
   s.action_start = now;
+  s.hide_answers = false;
   s.next_action = now + (pref.time_between_answers * 1000) as u64;
   let next_timeout = s.next_action;
   next_timeout
@@ -304,12 +358,14 @@ fn calc_points(s: &mut GameState, pref: &GamePreferences) {
 fn set_question(mut question: Question, s: &mut GameState, pref: &GamePreferences) -> u64 {
   log::info!("Question no {} / {}", question.index + 1, question.total_questions);
   question.correct = None;
+  question.solution = None;
   s.current_question = Some(question);
   let now = s.next_action;
   s.action_start = now;
   s.next_action = now + (pref.time_to_answer * 1000) as u64;
   s.status = AppStatus::InGameAnswerPending;
   s.given_answers = vec![];
+  s.hide_answers = if pref.hide_answers {true} else {false};
   s.next_action
 }
 

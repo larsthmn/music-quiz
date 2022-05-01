@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration};
 use rspotify::AuthCodeSpotify;
@@ -9,7 +8,7 @@ use rspotify::model::Id;
 use crate::game::Playlist;
 
 
-pub fn spotify_loop(state: Arc<Mutex<GameState>>, preferences: Arc<Mutex<GamePreferences>>,
+pub fn spotify_loop(_state: Arc<Mutex<GameState>>, preferences: Arc<Mutex<GamePreferences>>,
                     references: Arc<Mutex<GameReferences>>) {
   loop {
     // Always lock references fist to avoid deadlock!

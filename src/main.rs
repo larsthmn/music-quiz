@@ -2,7 +2,7 @@
 extern crate rocket;
 
 use std::sync::{Arc, mpsc, Mutex};
-use std::thread;
+use std::{fs, thread};
 use rocket::fs::FileServer;
 use rocket::serde::{json::Json, Serialize};
 use rocket::State;
@@ -13,13 +13,15 @@ use rspotify::clients::{BaseClient, OAuthClient};
 use rusqlite::Connection;
 use simple_logger::SimpleLogger;
 use log::LevelFilter;
-use crate::spotify::{CustomSpotifyChecks, spotify_loop};
+use rocket::serde::json::serde_json;
+use crate::spotify::{spotify_loop};
 
 mod game;
 mod quiz;
 // mod spotify;
-mod types;
 mod spotify;
+
+const PREFERENCES_FILE: &'static str = "preferences.json";
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
@@ -35,7 +37,9 @@ fn select_answer(state: &State<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUs
 #[post("/start_game")]
 fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   let r = references.lock().unwrap();
-  r.tx_commands.send(GameCommand::StartGame);
+  if let Err(e) =  r.tx_commands.send(GameCommand::StartGame) {
+    log::warn!("Could not send game command ({:?})", e)
+  }
 }
 
 #[post("/authorize_spotify?<code>")]
@@ -51,13 +55,16 @@ fn authorize_spotify(references: &State<Arc<Mutex<GameReferences>>>, code: Optio
   }
 }
 
-#[post("/set?<scoremode>&<playlist>&<time_to_answer>&<time_between_answers>&<time_before_round>")]
+#[post("/set?<scoremode>&<playlist>&<time_to_answer>&<time_between_answers>&<time_before_round>&<rounds>&<preview_mode>&<hide_answers>")]
 fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
                   scoremode: Option<ScoreMode>,
                   playlist: Option<String>,
                   time_to_answer: Option<u32>,
                   time_between_answers: Option<u32>,
-                  time_before_round: Option<u32>)
+                  time_before_round: Option<u32>,
+                  rounds: Option<u32>,
+                  preview_mode: Option<bool>,
+                  hide_answers: Option<bool>)
                   -> Json<GamePreferences> {
   let mut p = preferences.lock().unwrap();
   if let Some(sm) = scoremode {
@@ -82,7 +89,32 @@ fn set_preference(preferences: &State<Arc<Mutex<GamePreferences>>>,
     log::info!("set time_before_round to {}", t);
     p.time_before_round = t;
   }
-  Json(p.clone())
+  if let Some(r) = rounds {
+    log::info!("set rounds to {}", r);
+    p.rounds = r;
+  }
+  if let Some(m) = preview_mode {
+    log::info!("set preview_mode to {}", m);
+    p.preview_mode = m;
+  }
+  if let Some(m) = hide_answers {
+    log::info!("set hide_answers to {}", m);
+    p.hide_answers = m;
+  }
+  let new_preferences = p.clone();
+  drop(p);
+  save_preferences(&new_preferences, PREFERENCES_FILE);
+  Json(new_preferences)
+}
+
+fn save_preferences(new_preferences: &GamePreferences, to: &str) {
+  match fs::File::create(to) {
+    Ok(file) => match serde_json::to_writer_pretty::<fs::File, GamePreferences>(file, &new_preferences) {
+      Ok(_) => log::info!("Saved preferences to file"),
+      Err(e) => log::warn!("Could not save preferences to file ({:?})", e)
+    },
+    Err(e) => log::warn!("Could not open file to write: {:?}", e)
+  }
 }
 
 #[post("/set_preferences", format = "json", data = "<received>")]
@@ -90,7 +122,10 @@ fn set_preferences(preferences: &State<Arc<Mutex<GamePreferences>>>, received: J
                    -> Json<GamePreferences> {
   let mut p = preferences.lock().unwrap();
   *p = received.into_inner();
-  Json(p.clone())
+  let new_preferences = p.clone();
+  drop(p);
+  save_preferences(&new_preferences, PREFERENCES_FILE);
+  Json(new_preferences)
 }
 
 #[post("/stop_game")]
@@ -155,7 +190,10 @@ async fn main() {
     .with_module_level("_", LevelFilter::Warn)
     .init()
     .unwrap();
+
   let gamestate = Arc::new(Mutex::new(GameState::new()));
+
+  // Internal objects
   let (tx, rx) = mpsc::channel::<GameCommand>();
   let creds = Credentials::from_env().expect("Credentials not in .env-File");
   let db = rusqlite::Connection::open("./backend_db.sqlite3").expect("Could not open database");
@@ -183,11 +221,16 @@ async fn main() {
     },
     Err(e) => log::warn!("Could not load token: {:?}", e)
   }
-
   let references = Arc::new(Mutex::new(
     GameReferences { tx_commands: tx, spotify_client, db }));
 
-  let preferences = Arc::new(Mutex::new(GamePreferences::new()));
+  let mut game_pref = GamePreferences::new();
+  if let Ok(file) = fs::File::open(PREFERENCES_FILE) {
+    if let Ok(p) = serde_json::from_reader::<fs::File, GamePreferences>(file) {
+      game_pref = p;
+    }
+  }
+  let preferences = Arc::new(Mutex::new(game_pref));
 
   // Spawn Game thread
   let g = gamestate.clone();
