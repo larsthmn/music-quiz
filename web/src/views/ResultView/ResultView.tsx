@@ -3,16 +3,18 @@ import './ResultView.scss';
 
 type ResultViewProps = {
   results: any[],
+  small: boolean,
+  title: string
 }
 
-export const ResultView: React.FC<ResultViewProps> = ({results}) => {
+export const ResultView: React.FC<ResultViewProps> = ({results, small, title}) => {
   let max = Math.max.apply(Math, results.map((r) => {
     return r.points;
   }));
   if (max <= 0) max = 1;
   return (
-    <div>
-      <h2>Ergebnisse:</h2>
+    <div className={small ? "small-resultview" : "big-resultview"}>
+      <h2>{title}</h2>
       {results.map((res) => {
         return (
           <div className="result-bar-layout">

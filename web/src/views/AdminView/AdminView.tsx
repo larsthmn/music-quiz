@@ -3,6 +3,7 @@ import './AdminView.scss';
 import {SingleSelection, SingleSelectionElement} from "../../components/SingleSelection";
 import {spotifyLogin} from "../../spotifyLogin";
 import {Link} from "react-router-dom";
+import {GamePreferences} from "../../../../bindings/GamePreferences";
 
 enum ScoreMode {
   Time = "Time",
@@ -15,18 +16,6 @@ const SCORE_MODES: SingleSelectionElement[] = [
   {name: ScoreMode.WrongFalse, description: "Nur richtig/falsch"},
   {name: ScoreMode.Order, description: "Reihenfolge"}];
 
-// enum Timings {
-//   BetweenRounds = "BetweenRounds",
-//   ToAnswer = "ToAnswer",
-//   BetweenAnswers = "BetweenAnswers",
-//   BeforeRound = "BeforeRound"
-// }
-//
-// const TIME_OPTIONS: MultiSliderElement[] = [
-//   {name: Timings.BetweenRounds, description: "Zeit"},
-//   {name: ScoreMode.WrongFalse, description: "Nur richtig/falsch"},
-//   {name: ScoreMode.Order, description: "Reihenfolge"}];
-
 type SliderProps = {
   name: string,
   description: string,
@@ -34,39 +23,19 @@ type SliderProps = {
   min: number,
   max: number,
   onChange: (value: number) => void,
+  unit: string
 }
 
-// type SliderProps = {
-//   options: MultiSliderElement[],
-//   name: string,
-//   display: string,
-//   onChange: (name: string, value: number) => void,
-// }
-
 const Slider: React.FC<SliderProps> =
-  ({name, description, value, min, max, onChange}) => {
+  ({name, description, value, min, max, onChange, unit}) => {
     return (
       <div>
         <input type="range" value={value} name={name} min={min} max={max} step={1}
                onChange={(e) => onChange(Number(e.target.value))}/>
-        {description}: {value}s
+        {description}: {value}{unit}
       </div>
     );
   }
-
-type Playlist = {
-  name: string,
-  id: string
-}
-
-type GamePreferences = {
-  scoremode: string,
-  playlists: Playlist[],
-  selected_playlist: Playlist | null,
-  time_to_answer: number,
-  time_between_answers: number,
-  time_before_round: number,
-}
 
 export const AdminView: React.FC = () => {
   const [preferences, setPreferences] = useState<GamePreferences | null>(null);
@@ -132,13 +101,31 @@ export const AdminView: React.FC = () => {
 
         <div>
           <Slider name={"time_to_answer"} description={"Zeit zum Antworten"} value={preferences.time_to_answer} min={3}
-                  max={45} onChange={(v) => savePreference("time_to_answer", String(v))}/>
+                  max={30} unit="s" onChange={(v) => savePreference("time_to_answer", String(v))}/>
           <Slider name={"time_between_answers"} description={"Zeit zwischen Antworten"}
                   value={preferences.time_between_answers} min={0}
-                  max={45} onChange={(v) => savePreference("time_between_answers", String(v))}/>
+                  max={30} unit="s" onChange={(v) => savePreference("time_between_answers", String(v))}/>
           <Slider name={"time_before_round"} description={"Zeit vor Rundenstart"} value={preferences.time_before_round}
                   min={0}
-                  max={20} onChange={(v) => savePreference("time_before_round", String(v))}/>
+                  max={20} unit="s" onChange={(v) => savePreference("time_before_round", String(v))}/>
+          <Slider name={"rounds"} description={"Anzahl Runden"} value={preferences.rounds}
+                  min={1}
+                  max={30} unit="" onChange={(v) => savePreference("rounds", String(v))}/>
+        </div>
+
+        <div className="checkbox-container">
+          <label>
+            <input checked={preferences.preview_mode}
+                   type="checkbox"
+                   onChange={() => savePreference("preview_mode", String(!preferences.preview_mode))}/>
+            Preview-MP3s nutzen
+          </label>
+          <label>
+            <input checked={preferences.hide_answers}
+                   type="checkbox"
+                   onChange={() => savePreference("hide_answers", String(!preferences.hide_answers))}/>
+            Antworten bis Auflösung verbergen
+          </label>
         </div>
 
         <button onClick={(e) => {

@@ -1,8 +1,47 @@
+.player-name {
+  color: black;
+  font-weight: bold;
+  text-align: left;
+  width: 100px;
+}
+
+.small-resultview {
+  > h2 {
+    font-size: medium;
+    margin-bottom: 0;
+  }
+  .result-bar-layout {
+    margin: 5px 0;
+  }
+
+  .result-bar, .result-bar-background {
+    height: 25px;
+  }
+
+  .result-bar-layout {
+    padding: 0;
+  }
+}
+
+.big-resultview {
+  .result-bar-layout {
+    margin: 15px 0;
+  }
+
+  .result-bar, .result-bar-background {
+    height: 40px;
+  }
+
+  .result-bar-layout {
+    padding: 5px;
+  }
+}
+
 .result-bar-layout {
   display: flex;
-  gap: 5px;
   width: 100%;
-  margin: 15px 0;
+  align-items: center;
+  justify-content: center;
 }
 
 .result-bar-container {
@@ -10,40 +49,24 @@
   flex-grow: 1;
 }
 
-.player-name {
-  color: black;
-  font-weight: bold;
-  text-align: left;
-  padding: 7px;
-  width: 100px;
-  height: 40px;
-  border-radius: 5px;
-}
-
-@mixin result-style {
-  font-size: large;
-  border-radius: 5px;
-  height: 40px;
-  padding: 0 5px;
+.result-bar-container > * {
+  grid-area: 1/1;
 }
 
 .result-bar-background {
-  @include result-style;
+  border-radius: 5px;
   background: lightgrey;
-  text-align: left;
-  align-items: center;
-  grid-area: 1/1;
 }
 
 .result-bar {
-  @include result-style;
-  background: green;
-  grid-area: 1/1;
+  border-radius: 5px;
+  background: linear-gradient(cornflowerblue,dodgerblue);
 }
 
 .result-text {
-  grid-area: 1/1;
-  padding: 7px;
+  padding-left: 6px;
+  margin-top: auto;
+  margin-bottom: auto;
   text-shadow: white 0 0 10px;
   color: black;
 }
