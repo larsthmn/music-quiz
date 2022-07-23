@@ -51,3 +51,7 @@ Thumbs.db
 *.sqlite3
 .env
 .spotify_token_cache.json
+preferences.json
+
+# Generated TS data structures
+bindings/

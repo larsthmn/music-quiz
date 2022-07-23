@@ -8,7 +8,7 @@ import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
 import {GameState} from "../../../../bindings/GameState";
 import {UserAnswerExposed} from "../../../../bindings/UserAnswerExposed";
 
-const TIME_SYNC_PERIOD = 20000;
+const TIME_SYNC_PERIOD = 1000;
 const MIN_POLL_RATE = 150;
 const MAX_POLL_RATE = 1000;
 

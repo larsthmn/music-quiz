@@ -9,6 +9,7 @@ use rspotify::clients::{BaseClient, OAuthClient};
 use rspotify::model::{Device, FullTrack, Id, IdError, PlayableItem, PlaylistId};
 use rspotify::prelude::PlayableId;
 use crate::spotify::CustomSpotifyChecks;
+use crate::spotify_loop;
 
 // Modi: Keine Anzeige der ausgewählten Antworten
 const ANSWER_COUNT: u32 = 4;
@@ -67,7 +68,7 @@ impl<'a> SongQuiz<'a> {
 impl<'a> SongQuiz<'a> {
 
   /// Generates questions from the selected playlist saved internally
-  pub fn generate_questions(&mut self, count: u32, playlist_id: &String) -> Result<(), QuizError> {
+  pub fn generate_questions(&mut self, count: u32, playlist_id: &String, ask_artists: bool, ask_title: bool) -> Result<(), QuizError> {
     let mut songs: Vec<SongQuestion> = vec![];
     let mut questions: Vec<Question> = vec![];
 
@@ -94,7 +95,13 @@ impl<'a> SongQuiz<'a> {
 
     for i in 0..count {
       // Choose song from playlist as correct answer
-      let asked: AskedElement = random();
+      let mut asked: AskedElement = random();
+      if !ask_artists && ask_title {
+        asked = AskedElement::Title;
+      } else if ask_artists && !ask_title {
+        asked = AskedElement::Artist;
+      }
+
       let correct_song = &correct_songs[i as usize];
       songs.push(SongQuestion {
         song: correct_song.clone(),
@@ -206,9 +213,9 @@ impl<'a> SongQuiz<'a> {
         let bytes = self.songs[index].preview_mp3.take().ok_or(QuizError::RuntimeError("No preview in preview mode"))?;
         // see https://github.com/RustAudio/rodio/issues/171, sink cannot be stopped and play sounds afterwards
         // so we have to create a new one every time
-        self.sink = Some(rodio::Sink::try_new(&self.stream_handle).unwrap());
+        self.sink = Some(rodio::Sink::try_new(&self.stream_handle)?);
         let cursor = std::io::Cursor::new(bytes);
-        let source = rodio::Decoder::new(cursor).unwrap();
+        let source = rodio::Decoder::new(cursor)?;
         self.sink.as_ref().unwrap().append(source);
       } else {
         // Use a spotify player running somewhere (we take the currently active device or the first one if there is no
@@ -256,7 +263,9 @@ impl<'a> SongQuiz<'a> {
 impl<'a> Drop for SongQuiz<'a> {
   fn drop(&mut self) {
     self.sink = None;
-    let _ = self.spotify.pause_playback(None);
+    if self.spotify.has_token() {
+      let _ = self.spotify.pause_playback(None);
+    }
   }
 }
 
@@ -281,4 +290,10 @@ pub enum QuizError {
 
   #[error("RuntimeError: {0}")]
   RuntimeError(&'static str),
+
+  #[error("RodioPlayError: {0}")]
+  RodioPlayError(#[from] rodio::PlayError),
+
+  #[error("RodioDecoderError: {0}")]
+  RodioDecoderError(#[from] rodio::decoder::DecoderError),
 }

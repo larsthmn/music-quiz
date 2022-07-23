@@ -91,7 +91,7 @@ export const AdminView: React.FC = () => {
                          options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)}/>
 
         <div>
-          Playlist:
+          Playlist
           <select value={preferences.selected_playlist?.id} onChange={(e) => savePreference("playlist", e.target.value)}>
             {preferences.playlists.map((p) => {
               return <option key={p.id} value={p.id}>{p.name}</option>
@@ -125,6 +125,22 @@ export const AdminView: React.FC = () => {
                    type="checkbox"
                    onChange={() => savePreference("hide_answers", String(!preferences.hide_answers))}/>
             Antworten bis Auflösung verbergen
+          </label>
+        </div>
+
+        <div className="checkbox-container">
+          Antwortmöglichkeiten
+          <label>
+            <input checked={preferences.ask_for_artist}
+                   type="checkbox"
+                   onChange={() => savePreference("ask_for_artist", String(!preferences.ask_for_artist))}/>
+            Künstler
+          </label>
+          <label>
+            <input checked={preferences.ask_for_title}
+                   type="checkbox"
+                   onChange={() => savePreference("ask_for_title", String(!preferences.ask_for_title))}/>
+            Titel
           </label>
         </div>
 
