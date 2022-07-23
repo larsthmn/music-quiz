@@ -108,7 +108,6 @@ pub struct GameState {
 pub struct GameReferences {
   pub tx_commands: mpsc::Sender<GameCommand>,
   pub spotify_client: AuthCodeSpotify,
-  pub db: rusqlite::Connection,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField, TS)]
@@ -137,7 +136,9 @@ pub struct GamePreferences {
   pub time_before_round: u32,
   pub rounds: u32,
   pub preview_mode: bool,
-  pub hide_answers: bool
+  pub hide_answers: bool,
+  pub ask_for_artist: bool,
+  pub ask_for_title: bool
 }
 
 impl GamePreferences {
@@ -151,7 +152,9 @@ impl GamePreferences {
       time_between_answers: 5,
       rounds: 5,
       preview_mode: false,
-      hide_answers: false
+      hide_answers: false,
+      ask_for_artist: true,
+      ask_for_title: true
     }
   }
 }
@@ -241,7 +244,10 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: G
 
   // Generate questions to be answered
   let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
-  quiz.generate_questions(pref.rounds, &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id)?;
+  quiz.generate_questions(pref.rounds,
+                          &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id,
+                          pref.ask_for_artist,
+                          pref.ask_for_title)?;
 
   // Wait for game start or stopping game
   if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
@@ -372,7 +378,7 @@ fn set_question(mut question: Question, s: &mut GameState, pref: &GamePreference
 /// Wait for a command or until some time in ms after epoch
 fn wait_for_command(rx: &Receiver<GameCommand>, command: GameCommand, until: u64) -> bool {
   loop {
-    let diff: i64 = (until - get_epoch_ms()) as i64;
+    let diff: i64 = (until.checked_sub(get_epoch_ms()).unwrap_or(100)) as i64;
     if diff > 0 {
       match rx.recv_timeout(Duration::from_millis((diff) as u64)) {
         Ok(cmd) if cmd == command => {
@@ -416,8 +422,6 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
       Err(e) => log::warn!("Round ended with error: {:?}", e)
     }
     // After the round the results are available to be fetched until the next round is started
-
-
   }
 }
 
