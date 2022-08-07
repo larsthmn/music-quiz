@@ -9,7 +9,6 @@ use rspotify::clients::{BaseClient, OAuthClient};
 use rspotify::model::{Device, FullTrack, Id, IdError, PlayableItem, PlaylistId};
 use rspotify::prelude::PlayableId;
 use crate::spotify::CustomSpotifyChecks;
-use crate::spotify_loop;
 
 // Modi: Keine Anzeige der ausgewählten Antworten
 const ANSWER_COUNT: u32 = 4;
