@@ -8,16 +8,15 @@ use rocket::serde::{json::Json, Serialize, Deserialize};
 use rocket::State;
 use crate::game::{AnswerFromUser, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
 use std::time::{SystemTime, UNIX_EPOCH};
-use rspotify::{AuthCodeSpotify, Config, Credentials, OAuth, scopes};
+use rspotify::{AuthCodeSpotify, Config, Credentials, OAuth};
 use rspotify::clients::{BaseClient, OAuthClient};
 use simple_logger::SimpleLogger;
-use log::LevelFilter;
+use log::{LevelFilter};
 use rocket::serde::json::serde_json;
 use crate::spotify::{spotify_loop};
 
 mod game;
 mod quiz;
-// mod spotify;
 mod spotify;
 
 const PREFERENCES_FILE: &'static str = "preferences.json";
@@ -186,9 +185,32 @@ struct SpotifyPrefs {
   scopes: Vec<String>,
   redirect_uri: String,
   client_id: String,
+  client_secret: String,
+}
+
+impl SpotifyPrefs {
+  fn new() -> SpotifyPrefs {
+    SpotifyPrefs {
+      scopes: vec!["user-modify-playback-state".to_string(),
+                    "user-read-playback-state".to_string(),
+                    "user-read-currently-playing".to_string(),
+                    "playlist-read-collaborative".to_string(),
+                    "playlist-read-private".to_string(),
+                    "app-remote-control".to_string(),
+                    "streaming".to_string(),
+                    "user-read-email".to_string(),
+                    "user-read-private".to_string()],
+      redirect_uri: "http://localhost:80/redirect".to_string(),
+      client_id: "d071021f312148b38eaa0243f11a52c8".to_string(),
+      client_secret: "123456789".to_string()
+    }
+  }
 }
 
 #[get("/<file..>", rank = 2)]
+/**
+Default route for everything that is not part of the API. URL is parsed and handled by React.
+*/
 async fn index(file: std::path::PathBuf) -> Option<rocket::fs::NamedFile> {
   println!("match file with {:?}", file);
   rocket::fs::NamedFile::open(std::path::Path::new("public/index.html")).await.ok()
@@ -203,43 +225,27 @@ async fn main() {
     .init()
     .unwrap();
 
-  let gamestate = Arc::new(Mutex::new(GameState::new()));
-
   // Internal objects
   let (tx, rx) = mpsc::channel::<GameCommand>();
-  let creds = Credentials::from_env().expect("Credentials not in .env-File");
-  // todo: read URI and spotify stuff from JSON, configure port and ip somehow
-  // let mut spotify_client = AuthCodeSpotify::with_config(creds,
-  //                                                   OAuth::from_env(
-  //                                                  scopes!("user-modify-playback-state",
-  //                                                                   "user-read-playback-state",
-  //                                                                   "user-read-currently-playing",
-  //                                                                   "playlist-read-collaborative",
-  //                                                                   "playlist-read-private",
-  //                                                                   "app-remote-control",
-  //                                                                   "streaming",
-  //                                                                   "user-read-email",
-  //                                                                   "user-read-private"))
-  //                                                  .expect("Credentials not in .env-File"),
-  //                                                   Config { token_cached: true, ..Default::default() });
-  // if let Ok(file) = fs::File::open(SPOTIFY_FILE) {
-  //   if let Ok(s) = serde_json::from_reader::<fs::File, SpotifyPrefs>(file) {
-  //     game_pref = p;
-  //   }
-  // }
-  let redirect_uri = "http://localhost:80/redirect";
+
+  // Read spotify preferences and create clients
+  let mut spotify_prefs = SpotifyPrefs::new();
+  if let Ok(file) = fs::File::open(SPOTIFY_FILE) {
+    if let Ok(s) = serde_json::from_reader::<fs::File, SpotifyPrefs>(file) {
+      spotify_prefs = s;
+      log::info!("Successfully read file {}", SPOTIFY_FILE);
+    } else {
+      log::warn!("File {} not in expected format, using default", SPOTIFY_FILE);
+    }
+  } else {
+    log::warn!("Did not find {}, using default", SPOTIFY_FILE);
+  }
+  let creds = Credentials {id: spotify_prefs.client_id, secret: Some(spotify_prefs.client_secret) };
+  let redirect_uri = spotify_prefs.redirect_uri;
   let mut spotify_client = AuthCodeSpotify::with_config(creds,
                                                         OAuth {
-                                                          scopes: scopes!("user-modify-playback-state",
-                                                                    "user-read-playback-state",
-                                                                    "user-read-currently-playing",
-                                                                    "playlist-read-collaborative",
-                                                                    "playlist-read-private",
-                                                                    "app-remote-control",
-                                                                    "streaming",
-                                                                    "user-read-email",
-                                                                    "user-read-private"),
-                                                          redirect_uri: redirect_uri.to_string(),
+                                                          scopes: spotify_prefs.scopes.into_iter().collect(),
+                                                          redirect_uri,
                                                           ..Default::default()
                                                         },
                                                         Config { token_cached: true, ..Default::default() });
@@ -253,9 +259,10 @@ async fn main() {
     },
     Err(e) => log::warn!("Could not load token: {:?}", e)
   }
+
+  // Shared objects
   let references = Arc::new(Mutex::new(
     GameReferences { tx_commands: tx, spotify_client }));
-
   let mut game_pref = GamePreferences::new();
   if let Ok(file) = fs::File::open(PREFERENCES_FILE) {
     if let Ok(p) = serde_json::from_reader::<fs::File, GamePreferences>(file) {
@@ -263,6 +270,7 @@ async fn main() {
     }
   }
   let preferences = Arc::new(Mutex::new(game_pref));
+  let gamestate = Arc::new(Mutex::new(GameState::new()));
 
   // Spawn Game thread
   let g = gamestate.clone();
@@ -289,8 +297,6 @@ async fn main() {
 
   handle_gamethread.join().unwrap();
   handle_spotifythread.join().unwrap();
-  // thread join
-  log::info!("ende");
-}
 
-// für api abfragen (spotify) reqwest
+  log::info!("Goodbye.");
+}
