@@ -63,10 +63,19 @@
   background: linear-gradient(cornflowerblue,dodgerblue);
 }
 
-.result-text {
+.result-text-left {
   padding-left: 6px;
   margin-top: auto;
   margin-bottom: auto;
   text-shadow: white 0 0 10px;
   color: black;
+}
+
+.result-text-right {
+  padding-right: 6px;
+  margin-top: auto;
+  margin-bottom: auto;
+  text-shadow: white 0 0 10px;
+  color: black;
+  text-align: right;
 }

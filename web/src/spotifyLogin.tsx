@@ -2,7 +2,7 @@ import {useNavigate} from "react-router-dom";
 
 const REACT_APP_CLIENT_ID = 'd071021f312148b38eaa0243f11a52c8';
 const REACT_APP_CLIENT_SECRET = 'e7b6900b04b74d28a08e0e56f6c84c41';
-const REACT_APP_REDIRECT_URL = "http://localhost:80/redirect";
+const REACT_APP_REDIRECT_URL = "http://localhost:3000/redirect";
 const REACT_APP_SCOPES = 'user-modify-playback-state user-read-playback-state user-read-currently-playing playlist-read-collaborative playlist-read-private app-remote-control streaming user-read-email user-read-private';
 
 export const spotifyLogin = () => {
@@ -37,7 +37,7 @@ export const spotifyGetAccessToken = (code: string) => {
     body: new URLSearchParams({
       'grant_type': 'authorization_code',
       'code': code,
-      'redirect_uri': 'http://localhost:80/redirect'
+      'redirect_uri': 'http://localhost:3000/redirect'
     })
   })
 }
