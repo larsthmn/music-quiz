@@ -8,6 +8,10 @@ use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{QuizError, SongQuiz};
 use ts_rs::TS;
 
+const MAX_POINTS_CORRECT_ANSWER: u32 = 100; /// Maximum points for correct answer
+const MIN_POINTS_CORRECT_ANSWER: u32 = 20;  /// Minimum points for correct answer
+const TIME_FULL_POINTS_MS: u32 = 900;  /// Time after question start in which full points are given (in time score mode)
+
 #[derive(Serialize, Clone, TS)]
 #[ts(export)]
 pub struct UserAnswerExposed {
@@ -41,6 +45,8 @@ struct PlayerScoreAPI {
   points: i32,
   correct: u32,
   answers_given: u32,
+  last_points: Option<i32>,
+  last_time: Option<f32>
 }
 
 impl PlayerScoreAPI {
@@ -50,6 +56,8 @@ impl PlayerScoreAPI {
       points: 0,
       correct: 0,
       answers_given: 0,
+      last_points: None,
+      last_time: None,
     }
   }
 }
@@ -238,16 +246,17 @@ fn get_epoch_ms() -> u64 {
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
 fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
-  let mut s = state.lock().unwrap();
-  let next_timeout = prepare_round(&mut s, &pref);
-  drop(s);
-
+  // todo: waiting state while questions are prepared?
   // Generate questions to be answered
   let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
   quiz.generate_questions(pref.rounds,
                           &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id,
                           pref.ask_for_artist,
                           pref.ask_for_title)?;
+
+  let mut s = state.lock().unwrap();
+  let next_timeout = prepare_round(&mut s, &pref);
+  drop(s);
 
   // Wait for game start or stopping game
   if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
@@ -305,6 +314,10 @@ fn prepare_round(s: &mut GameState, pref: &GamePreferences) -> u64 {
 }
 
 fn end_round(s: &mut GameState) {
+  for score in &mut s.players {
+    score.last_time = None;
+    score.last_points = None;
+  }
   s.current_question = None;
   s.action_start = 0;
   s.next_action = 0;
@@ -330,6 +343,21 @@ fn finish_question(question: &Question, s: &mut GameState, pref: &GamePreference
   next_timeout
 }
 
+/**
+Calculate the points depending on needed time and maximum time to answer
+*/
+fn calc_points_time(time_needed_for_answer: u64, max_answer_time: u64) -> u32 {
+  if time_needed_for_answer <= TIME_FULL_POINTS_MS as u64 {
+    MAX_POINTS_CORRECT_ANSWER
+  } else {
+    let time_after_deadzone = std::cmp::max(time_needed_for_answer - TIME_FULL_POINTS_MS as u64, 0);
+    let part_needed = time_after_deadzone as f32 / (max_answer_time - TIME_FULL_POINTS_MS as u64) as f32;
+    ((1.0 - part_needed).max(0.0) *
+      (MAX_POINTS_CORRECT_ANSWER - MIN_POINTS_CORRECT_ANSWER) as f32 + MIN_POINTS_CORRECT_ANSWER as f32)
+      .round() as u32
+  }
+}
+
 /// Calculate the points for all players for the current question
 fn calc_points(s: &mut GameState, pref: &GamePreferences) {
   if let Some(q) = &s.current_question {
@@ -341,20 +369,26 @@ fn calc_points(s: &mut GameState, pref: &GamePreferences) {
         s.players.push(PlayerScoreAPI::new(user_ans.user.clone()));
       }
       // Points need to be calculated here, because later s can't be borrowed (since score = mutable borrow)
-      let points_if_correct = match pref.scoremode {
-        ScoreMode::Time => ((1.0 - (user_ans.ts - s.action_start) as f32 /
-          (s.next_action - s.action_start) as f32) * 100.0).round() as i32,
-        ScoreMode::Order => (100 - pos * 10) as i32,
-        ScoreMode::WrongFalse => 100
+      let time_needed_for_answer = user_ans.ts - s.action_start;
+      let mut points_if_correct: i32 = match pref.scoremode {
+        ScoreMode::Time => calc_points_time(time_needed_for_answer, s.next_action - s.action_start) as i32,
+        ScoreMode::Order => (MAX_POINTS_CORRECT_ANSWER - pos as u32 * 10) as i32,
+        ScoreMode::WrongFalse => MAX_POINTS_CORRECT_ANSWER as i32
       };
+      points_if_correct = std::cmp::max(MIN_POINTS_CORRECT_ANSWER as i32,
+                                        std::cmp::min(MAX_POINTS_CORRECT_ANSWER as i32, points_if_correct));
       let score = s.players
         .iter_mut()
         .find(|score| score.player == user_ans.user)
         .expect("Player must be in Vector");
       score.answers_given += 1;
+      score.last_time = Some(time_needed_for_answer as f32 / 1000.0);
       if &user_ans.answer_id == q.correct.as_ref().expect("No correct answer in calc_points") {
         score.correct += 1;
+        score.last_points = Some(points_if_correct);
         score.points += points_if_correct;
+      } else {
+        score.last_points = Some(0);
       }
     }
   }
@@ -460,5 +494,20 @@ impl From<&'static str> for GameError {
 impl From<QuizError> for GameError {
   fn from(e: QuizError) -> Self {
     GameError::QuizError(e)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn points() {
+    let points = calc_points_time(1000, 1000);
+    assert_eq!(MIN_POINTS_CORRECT_ANSWER, points);
+    assert_eq!(MAX_POINTS_CORRECT_ANSWER, calc_points_time(0, 1000));
+    assert_eq!((MAX_POINTS_CORRECT_ANSWER + MIN_POINTS_CORRECT_ANSWER) / 2,
+               calc_points_time(1000 + TIME_FULL_POINTS_MS as u64,
+                                2000 + TIME_FULL_POINTS_MS as u64));
   }
 }

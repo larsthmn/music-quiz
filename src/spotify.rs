@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration};
 use rspotify::AuthCodeSpotify;
@@ -41,9 +42,10 @@ pub fn spotify_loop(_state: Arc<Mutex<GameState>>, preferences: Arc<Mutex<GamePr
         log::info!("set selected playlist to first one {:?}", p.playlists[0]);
         p.selected_playlist = Some(p.playlists[0].clone());
       }
+      log::info!("Refreshed playlists");
     }
-
     drop(r);
+
     std::thread::sleep(Duration::from_secs(20));
   }
 }
@@ -54,6 +56,9 @@ pub trait CustomSpotifyChecks {
 
 impl CustomSpotifyChecks for AuthCodeSpotify {
   fn has_token(&self) -> bool {
-    self.get_token().lock().unwrap().is_some()
+    match self.get_token().lock().unwrap().deref() {
+      Some(token) => !token.is_expired(),
+      None => false
+    }
   }
 }

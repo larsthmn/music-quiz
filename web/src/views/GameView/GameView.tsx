@@ -31,6 +31,55 @@ export class GameView extends React.Component<any, GameState> {
       players: [],
       hide_answers: false
     };
+    // this.state = {
+    //   status: "InGameAnswerPending",
+    //   action_start: BigInt(1659900273643),
+    //   next_action: BigInt(1659900278643),
+    //   current_question: {
+    //     text: "Wie heißt der Titel?",
+    //     answers: [
+    //       {
+    //         text: "The Bottom",
+    //         id: "The Bottom"
+    //       },
+    //       {
+    //         text: "Blind Man",
+    //         id: "Blind Man"
+    //       },
+    //       {
+    //         text: "Help",
+    //         id: "Help"
+    //       },
+    //       {
+    //         text: "MC Thunder",
+    //         id: "MC Thunder"
+    //       }
+    //     ],
+    //     correct: null,
+    //     solution: null,
+    //     index: 1,
+    //     total_questions: 5
+    //   },
+    //   players: [
+    //     {
+    //       player: "Lars",
+    //       points: 100,
+    //       correct: 1,
+    //       answers_given: 1,
+    //       last_points: 10,
+    //       // last_points: 60,
+    //       last_time: 0.3,
+    //     }
+    //   ],
+    //   given_answers: [
+    //     {
+    //       answer_id: "Help",
+    //       user: "Lars",
+    //       ts: BigInt(1659900277055)
+    //     }
+    //   ],
+    //   hide_answers: false
+    // }
 
     this.mounted = false;
     this.timer = null;
