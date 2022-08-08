@@ -1,6 +1,6 @@
 import React from "react";
 import './ResultView.scss';
-import type { PlayerScoreAPI } from '../../../../bindings/PlayerScoreAPI'
+import type { PlayerScoreAPI } from '../../../../shared/PlayerScoreAPI'
 
 type ResultViewProps = {
   results: PlayerScoreAPI[],

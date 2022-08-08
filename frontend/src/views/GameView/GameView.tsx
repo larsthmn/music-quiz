@@ -5,8 +5,8 @@ import {TimeBar} from "../../components/TimeBar";
 import {ResultView} from "../ResultView/ResultView";
 import {Link} from 'react-router-dom';
 import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
-import {GameState} from "../../../../bindings/GameState";
-import {UserAnswerExposed} from "../../../../bindings/UserAnswerExposed";
+import {GameState} from "../../../../shared/GameState";
+import {UserAnswerExposed} from "../../../../shared/UserAnswerExposed";
 
 const TIME_SYNC_PERIOD = 1000;
 const MIN_POLL_RATE = 150;
