@@ -14,6 +14,7 @@ use simple_logger::SimpleLogger;
 use log::{LevelFilter};
 use rocket::serde::json::serde_json;
 use crate::spotify::{spotify_loop};
+use ts_rs::TS;
 
 mod game;
 mod quiz;
@@ -180,7 +181,8 @@ fn get_time(now: Option<u64>) -> Json<TimeAnswer> {
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export_to = "../shared/")]
 struct SpotifyPrefs {
   scopes: Vec<String>,
   redirect_uri: String,

@@ -13,7 +13,7 @@ const MIN_POINTS_CORRECT_ANSWER: u32 = 20;  /// Minimum points for correct answe
 const TIME_FULL_POINTS_MS: u32 = 900;  /// Time after question start in which full points are given (in time score mode)
 
 #[derive(Serialize, Clone, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct UserAnswerExposed {
   answer_id: String,
   user: String,
@@ -21,14 +21,14 @@ pub struct UserAnswerExposed {
 }
 
 #[derive(Serialize, Clone, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct AnswerExposed {
   pub text: String,
   pub id: String,
 }
 
 #[derive(Serialize, Clone, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct Question {
   pub text: String,
   pub answers: Vec<AnswerExposed>,
@@ -39,7 +39,7 @@ pub struct Question {
 }
 
 #[derive(Serialize, Clone, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 struct PlayerScoreAPI {
   player: String,
   points: i32,
@@ -63,7 +63,7 @@ impl PlayerScoreAPI {
 }
 
 #[derive(PartialEq, Serialize, Copy, Clone, Debug, strum_macros::Display, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub enum AppStatus {
   Shutdown,
   Ready,
@@ -75,7 +75,7 @@ pub enum AppStatus {
 
 // Public game management structure
 #[derive(Serialize, Clone, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct GameState {
   status: AppStatus,
   action_start: u64,
@@ -87,7 +87,7 @@ pub struct GameState {
 }
 
 // #[derive(Serialize, Clone, TS)]
-// #[ts(export)]
+// #[ts(export_to = "../shared/")]
 // pub struct GameStateExposed {
 //   status: AppStatus,
 //   action_start: u64,
@@ -119,7 +119,7 @@ pub struct GameReferences {
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub enum ScoreMode {
   Time,
   WrongFalse,
@@ -127,14 +127,14 @@ pub enum ScoreMode {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct Playlist {
   pub name: String,
   pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct GamePreferences {
   pub scoremode: ScoreMode,
   pub playlists: Vec<Playlist>,
@@ -168,14 +168,14 @@ impl GamePreferences {
 }
 
 #[derive(PartialEq, Serialize, Clone, Debug, strum_macros::Display, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub enum GameCommand {
   StartGame,
   StopGame,
 }
 
 #[derive(Serialize, Deserialize, Debug, TS)]
-#[ts(export)]
+#[ts(export_to = "../shared/")]
 pub struct AnswerFromUser {
   id: String,
   timestamp: u64,

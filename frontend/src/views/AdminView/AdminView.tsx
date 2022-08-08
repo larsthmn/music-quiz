@@ -3,7 +3,7 @@ import './AdminView.scss';
 import {SingleSelection, SingleSelectionElement} from "../../components/SingleSelection";
 import {spotifyLogin} from "../../spotifyLogin";
 import {Link} from "react-router-dom";
-import {GamePreferences} from "../../../../bindings/GamePreferences";
+import {GamePreferences} from "../../../../shared/GamePreferences";
 
 enum ScoreMode {
   Time = "Time",
