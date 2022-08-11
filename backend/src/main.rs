@@ -182,6 +182,7 @@ fn get_time(now: Option<u64>) -> Json<TimeAnswer> {
 }
 
 #[derive(Deserialize, TS)]
+#[ts(export)]
 #[ts(export_to = "../shared/")]
 struct SpotifyPrefs {
   scopes: Vec<String>,
