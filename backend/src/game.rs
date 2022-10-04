@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use rspotify::AuthCodeSpotify;
@@ -122,6 +121,7 @@ pub struct GameState {
 // Internal game management structure
 pub struct GameReferences {
   pub tx_commands: mpsc::Sender<GameCommand>,
+  pub tx_spotify: mpsc::Sender<()>,
   pub spotify_client: AuthCodeSpotify,
 }
 
@@ -257,7 +257,7 @@ fn get_epoch_ms() -> u64 {
 ///
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
-fn game_round(state: &Arc<Mutex<GameState>>, rx: &Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
+fn game_round(state: &Arc<Mutex<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
   // todo: waiting state while questions are prepared?
   // Generate questions to be answered
   let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
@@ -422,7 +422,7 @@ fn set_question(mut question: Question, s: &mut GameState, pref: &GamePreference
 }
 
 /// Wait for a command or until some time in ms after epoch
-fn wait_for_command(rx: &Receiver<GameCommand>, command: GameCommand, until: u64) -> bool {
+fn wait_for_command(rx: &mpsc::Receiver<GameCommand>, command: GameCommand, until: u64) -> bool {
   loop {
     let diff: i64 = (until.checked_sub(get_epoch_ms()).unwrap_or(100)) as i64;
     if diff > 0 {
@@ -472,7 +472,7 @@ pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, prefer
 }
 
 /// Wait for the Command `StartGame`
-fn wait_for_game_start(rx: &Receiver<GameCommand>) {
+fn wait_for_game_start(rx: &mpsc::Receiver<GameCommand>) {
   loop {
     if let Ok(c) = rx.recv() {
       if c == GameCommand::StartGame {

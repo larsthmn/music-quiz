@@ -77,6 +77,12 @@ export const AdminView: React.FC = () => {
     }).then(r => console.log(r));
   };
 
+  const refreshSpotify = () => {
+    fetch("/refresh_spotify", {
+      'method': 'POST',
+    }).then(r => console.log(r));
+  };
+
   if (preferences) {
     return (
       <div className="admin-container">
@@ -97,6 +103,9 @@ export const AdminView: React.FC = () => {
               return <option key={p.id} value={p.id}>{p.name}</option>
             })}
           </select>
+          <button onClick={refreshSpotify}>
+            Refresh
+          </button>
         </div>
 
         <div>
