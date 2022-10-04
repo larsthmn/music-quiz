@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use rocket::serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use rspotify::AuthCodeSpotify;
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{QuizError, SongQuiz};
