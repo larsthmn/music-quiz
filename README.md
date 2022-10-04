@@ -1,10 +1,25 @@
 # Music Quiz
 
+## Dependencies
+
+This app is developed on Windows, so we stick with the GNU make port and powershell commands in the Makefile. 
+Install `make` with
+```
+choco install make
+```
+To use it under Linux, you probably need to rewrite the Makefile with bash commands or execute the stuff in it manually.
+
 ## Development
 
-Execute `copy-shared.bat` to copy shared files to frontend and backend directories. \
+Put all spotify credentials into shared/spotify.json. 
+Leave `[PORT]` as it is since it's replaced automatically when copying the file for debug or release.
+Use 
+```
+make debug
+```
+to copy the spotify config to the frontend and backend folders.
 
-Change to the `web` directory and start the frontend with
+Change to the `frontend` directory and start the frontend with
 ```
 npm start
 ```
@@ -17,23 +32,16 @@ Compile and start the rust server in debug build. This starts the backend on por
 
 While developing, routes are first handles by React and forwarded to its configured proxy (localhost:8000 and thereby
 to the Rust backend) if React doesn't know the route.
-In release build, all routes are served by the Rust application. The rust app has a wildcard serving all routes with
-the index.html file with a lower rank than all other routes.
+In release build, all routes are served by the Rust application via port 80. 
+The rust app has a wildcard serving all routes with the index.html file with a lower rank than all other routes.
 
 ## Deployment
 
-Compile the rust app as release build with 
+Run
 ```
-cargo build --release
+make release
 ```
-and copy the executable to the destination folder. 
-Then go to `web` folder and type 
-```
-npm run build
-```
-to build the frontend app for production with to the `build` folder. \
-Copy its contents (index.html, folder 'static', manifest.json etc.) to a folder called `public` in the destination 
-folder.
+This copies the spotify.json with port 80 to the folders, compiles the frontend and backend and copies all files to
+the release folder. 
+Take the whole folder for distribution.
 Start the `rust-backend.exe` in some terminal and connect to the IP of the host computer with your clients.
-
-### 

@@ -20,6 +20,8 @@ mod game;
 mod quiz;
 mod spotify;
 
+// todo: switch from rocket to axum, has websockets included
+
 const PREFERENCES_FILE: &'static str = "preferences.json";
 const SPOTIFY_FILE: &'static str = "spotify.json";
 
@@ -288,15 +290,17 @@ async fn main() {
   let handle_spotifythread = thread::spawn(move || { spotify_loop(g, p, r) });
 
   // Start HTTP interface
-  rocket::build()
+  let fut_rocket = rocket::build()
     .mount("/", routes![select_answer, index,
             get_state, get_time, start_game, stop_game, set_preference, get_preferences, set_preferences, authorize_spotify])
     .mount("/", FileServer::from("public").rank(1))
     .manage(gamestate)
     .manage(references)
     .manage(preferences)
-    .launch()
-    .await.unwrap();
+    .launch();
+
+  // todo: Start websocket server and join futures
+  fut_rocket.await.unwrap();
 
   handle_gamethread.join().unwrap();
   handle_spotifythread.join().unwrap();
