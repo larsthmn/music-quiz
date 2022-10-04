@@ -44,6 +44,14 @@ fn start_game(references: &State<Arc<Mutex<GameReferences>>>) {
   }
 }
 
+#[post("/refresh_spotify")]
+fn refresh_spotify(references: &State<Arc<Mutex<GameReferences>>>) {
+  let r = references.lock().unwrap();
+  if let Err(e) =  r.tx_spotify.send(()) {
+    log::warn!("Could not send spotify wakeup ({:?})", e)
+  }
+}
+
 #[post("/authorize_spotify?<code>")]
 fn authorize_spotify(references: &State<Arc<Mutex<GameReferences>>>, code: Option<String>) {
   let mut r = references.lock().unwrap();
@@ -231,7 +239,8 @@ async fn main() {
     .unwrap();
 
   // Internal objects
-  let (tx, rx) = mpsc::channel::<GameCommand>();
+  let (tx_cmd, rx_cmd) = mpsc::channel::<GameCommand>();
+  let (tx_spotify, rx_spotify) = mpsc::channel::<()>(); // Nothing to be transferred, just to wakeup
 
   // Read spotify preferences and create clients
   let mut spotify_prefs = SpotifyPrefs::new();
@@ -267,7 +276,7 @@ async fn main() {
 
   // Shared objects
   let references = Arc::new(Mutex::new(
-    GameReferences { tx_commands: tx, spotify_client }));
+    GameReferences { tx_commands: tx_cmd, tx_spotify, spotify_client }));
   let mut game_pref = GamePreferences::new();
   if let Ok(file) = fs::File::open(PREFERENCES_FILE) {
     if let Ok(p) = serde_json::from_reader::<fs::File, GamePreferences>(file) {
@@ -281,18 +290,19 @@ async fn main() {
   let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
-  let handle_gamethread = thread::spawn(move || { game::run(g, rx, p, r) });
+  let handle_gamethread = thread::spawn(move || { game::run(g, rx_cmd, p, r) });
 
   // Spawn spotify thread
   let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
-  let handle_spotifythread = thread::spawn(move || { spotify_loop(g, p, r) });
+  let handle_spotifythread = thread::spawn(move || { spotify_loop(g, rx_spotify, p, r) });
 
   // Start HTTP interface
   let fut_rocket = rocket::build()
     .mount("/", routes![select_answer, index,
-            get_state, get_time, start_game, stop_game, set_preference, get_preferences, set_preferences, authorize_spotify])
+            get_state, get_time, start_game, stop_game, set_preference, get_preferences, set_preferences,
+            authorize_spotify, refresh_spotify])
     .mount("/", FileServer::from("public").rank(1))
     .manage(gamestate)
     .manage(references)

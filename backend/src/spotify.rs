@@ -7,9 +7,10 @@ use crate::{GamePreferences, GameReferences, GameState};
 use chrono::prelude::*;
 use rspotify::model::Id;
 use crate::game::Playlist;
+use std::sync::mpsc;
 
 
-pub fn spotify_loop(_state: Arc<Mutex<GameState>>, preferences: Arc<Mutex<GamePreferences>>,
+pub fn spotify_loop(_state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<()>, preferences: Arc<Mutex<GamePreferences>>,
                     references: Arc<Mutex<GameReferences>>) {
   loop {
     // Always lock references fist to avoid deadlock!
@@ -46,7 +47,10 @@ pub fn spotify_loop(_state: Arc<Mutex<GameState>>, preferences: Arc<Mutex<GamePr
     }
     drop(r);
 
-    std::thread::sleep(Duration::from_secs(20));
+    if let Err(std::sync::mpsc::RecvTimeoutError::Disconnected) = rx.recv_timeout(Duration::from_secs(20))
+    {
+      return;
+    }
   }
 }
 
