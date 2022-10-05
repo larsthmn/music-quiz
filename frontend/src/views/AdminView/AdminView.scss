@@ -1,7 +1,7 @@
 .admin-container {
-  display: flex;
-  justify-content: space-between;
-  flex-flow: row wrap;
+  display: grid;
+  gap: var(--space-xl);
+  place-content: center;
 }
 
 .admin-container > * {
@@ -17,3 +17,4 @@
     display: flex;
     flex-flow: column;
 }
+
