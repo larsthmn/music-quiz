@@ -17,7 +17,6 @@ export const SingleSelection: React.FC<SelectionProps> =
   ({options, selected,  name, display, onChange}) => {
     return (
       <div className="radio-container">
-        <h3>{display}</h3>
         {options.map((sm) => {
           return (
             <label key={sm.name + selected}>

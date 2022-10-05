@@ -86,79 +86,92 @@ export const AdminView: React.FC = () => {
   if (preferences) {
     return (
       <div className="admin-container">
-        <button onClick={startGame}>
-          Spiel starten
-        </button>
-        <button onClick={stopGame}>
-          Spiel abbrechen
-        </button>
-        <SingleSelection selected={preferences.scoremode}
-                         name="scoremode" display="Punktebewertung"
-                         options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)}/>
-
-        <div>
+        <fieldset>
+          <legend>Steuerung</legend>
           Playlist
           <select value={preferences.selected_playlist?.id} onChange={(e) => savePreference("playlist", e.target.value)}>
             {preferences.playlists.map((p) => {
               return <option key={p.id} value={p.id}>{p.name}</option>
             })}
           </select>
-          <button onClick={refreshSpotify}>
-            Refresh
+          <button onClick={startGame}>
+            Spiel starten
           </button>
-        </div>
+          <button onClick={stopGame}>
+            Spiel abbrechen
+          </button>
+        </fieldset>
 
-        <div>
-          <Slider name={"time_to_answer"} description={"Zeit zum Antworten"} value={preferences.time_to_answer} min={3}
-                  max={30} unit="s" onChange={(v) => savePreference("time_to_answer", String(v))}/>
-          <Slider name={"time_between_answers"} description={"Zeit zwischen Antworten"}
-                  value={preferences.time_between_answers} min={0}
-                  max={30} unit="s" onChange={(v) => savePreference("time_between_answers", String(v))}/>
-          <Slider name={"time_before_round"} description={"Zeit vor Rundenstart"} value={preferences.time_before_round}
-                  min={0}
-                  max={20} unit="s" onChange={(v) => savePreference("time_before_round", String(v))}/>
-          <Slider name={"rounds"} description={"Anzahl Runden"} value={preferences.rounds}
-                  min={1}
-                  max={30} unit="" onChange={(v) => savePreference("rounds", String(v))}/>
-        </div>
-
-        <div className="checkbox-container">
+        <fieldset>
+          <legend>Spotify</legend>
+          <div>
+            <button onClick={refreshSpotify}>
+              Refresh Playlists
+            </button>
+            <button onClick={(e) => {
+              e.preventDefault();
+              spotifyLogin()
+            }}>
+              Spotify verbinden
+            </button>
+          </div>
           <label>
             <input checked={preferences.preview_mode}
                    type="checkbox"
                    onChange={() => savePreference("preview_mode", String(!preferences.preview_mode))}/>
             Preview-MP3s nutzen
           </label>
-          <label>
-            <input checked={preferences.hide_answers}
-                   type="checkbox"
-                   onChange={() => savePreference("hide_answers", String(!preferences.hide_answers))}/>
-            Antworten bis Auflösung verbergen
-          </label>
-        </div>
 
-        <div className="checkbox-container">
-          Antwortmöglichkeiten
-          <label>
-            <input checked={preferences.ask_for_artist}
-                   type="checkbox"
-                   onChange={() => savePreference("ask_for_artist", String(!preferences.ask_for_artist))}/>
-            Künstler
-          </label>
-          <label>
-            <input checked={preferences.ask_for_title}
-                   type="checkbox"
-                   onChange={() => savePreference("ask_for_title", String(!preferences.ask_for_title))}/>
-            Titel
-          </label>
-        </div>
+        </fieldset>
 
-        <button onClick={(e) => {
-          e.preventDefault();
-          spotifyLogin()
-        }}>
-          Spotify verbinden
-        </button>
+        <fieldset>
+          <legend>Antworten</legend>
+          <div>
+            <Slider name={"time_to_answer"} description={"Zeit zum Antworten"} value={preferences.time_to_answer} min={3}
+                    max={30} unit="s" onChange={(v) => savePreference("time_to_answer", String(v))}/>
+            <Slider name={"time_between_answers"} description={"Zeit zwischen Antworten"}
+                    value={preferences.time_between_answers} min={0}
+                    max={30} unit="s" onChange={(v) => savePreference("time_between_answers", String(v))}/>
+            <Slider name={"time_before_round"} description={"Zeit vor Rundenstart"} value={preferences.time_before_round}
+                    min={0}
+                    max={20} unit="s" onChange={(v) => savePreference("time_before_round", String(v))}/>
+            <Slider name={"rounds"} description={"Anzahl Runden"} value={preferences.rounds}
+                    min={1}
+                    max={30} unit="" onChange={(v) => savePreference("rounds", String(v))}/>
+          </div>
+
+          <div className="checkbox-container">
+            <label>
+              <input checked={preferences.hide_answers}
+                     type="checkbox"
+                     onChange={() => savePreference("hide_answers", String(!preferences.hide_answers))}/>
+              Antworten bis Auflösung verbergen
+            </label>
+            <label>
+              <input checked={preferences.ask_for_artist}
+                     type="checkbox"
+                     onChange={() => savePreference("ask_for_artist", String(!preferences.ask_for_artist))}/>
+              Nach Künstler fragen
+            </label>
+            <label>
+              <input checked={preferences.ask_for_title}
+                     type="checkbox"
+                     onChange={() => savePreference("ask_for_title", String(!preferences.ask_for_title))}/>
+              Nach Titel fragen
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Punktebewertung</legend>
+          <SingleSelection selected={preferences.scoremode}
+                           name="scoremode" display="Punktebewertung"
+                           options={SCORE_MODES} onChange={(s) => savePreference("scoremode", s)}/>
+        </fieldset>
+
+
+
+
 
         <Link to='/'>
           <button className={'backbutton'} />
