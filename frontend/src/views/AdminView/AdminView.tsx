@@ -88,7 +88,6 @@ export const AdminView: React.FC = () => {
       <div className="admin-container">
         <fieldset>
           <legend>Steuerung</legend>
-          Playlist
           <select value={preferences.selected_playlist?.id} onChange={(e) => savePreference("playlist", e.target.value)}>
             {preferences.playlists.map((p) => {
               return <option key={p.id} value={p.id}>{p.name}</option>
