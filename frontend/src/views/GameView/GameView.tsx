@@ -192,7 +192,7 @@ export class GameView extends React.Component<any, GameState> {
           content =
             <div>
               <h2>
-                [{data.current_question !== null ? (data.current_question.index + 1) : ""} / {data.current_question?.total_questions}]&nbsp;
+                ({data.current_question !== null ? (data.current_question.index + 1) : ""}/{data.current_question?.total_questions})&nbsp;
                 {data.status === "InGameAnswerPending" && data.current_question?.text}
                 {data.status === "InGameWaitForNextQuestion" && "Lösung: " + data.current_question?.solution}
               </h2>

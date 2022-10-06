@@ -1,33 +1,44 @@
 .button-element {
   width: 100%;
   height: 15%;
-  transition: all .3s;
   position: relative;
 
   &.selected {
-    &:active {
-      background-color: lightyellow;
-    }
-    background-color: yellow;
+    background-image: linear-gradient(
+                    to right,
+                    #25aae1,
+                    #4481eb,
+                    #04befe,
+                    #3f86ed
+    );
+    box-shadow: 0 4px 15px 0 rgba(65, 132, 234, 0.75);
   }
 
   &.correct {
-    &:active {
-      background-color: lightgreen;
-    }
-    background-color: forestgreen;
+    background-image: linear-gradient(
+                    to right,
+                    #0ba360,
+                    #3cba92,
+                    #30dd8a,
+                    #2bb673
+    );
+    box-shadow: 0 4px 5px 0 rgba(23, 168, 108, 0.75);
   }
 
   &.wrong {
-    &:active {
-      background-color: indianred;
-    }
-    background-color: red;
+    background-image: linear-gradient(
+                    to right,
+                    #eb3941,
+                    #f15e64,
+                    #e14e53,
+                    #e2373f
+    );
+    box-shadow: 0 5px 15px rgba(242, 97, 103, 0.4);
   }
 }
 
 .button-text {
-  text-shadow: white 0 0 15px;
+  text-shadow: rgba(255, 255, 255, 0.35) 0 0 15px;
 }
 
 .button-mark-container {
