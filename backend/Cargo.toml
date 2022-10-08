@@ -1,14 +1,13 @@
 [package]
 name = "rust-backend"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rocket = { version = "0.5.0-rc.1", features = ["json"]}
 serde = "1.0.136"
-rocket_dyn_templates = { version = "0.1.0-rc.1" , features = ["handlebars"]}
+serde_json = "1.0.85"
 thiserror = "1.0.30"
 strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
@@ -21,3 +20,8 @@ log = "0.4.16"
 rodio = "0.15.0"
 bytes = "1.1.0"
 ts-rs = {version = "6.1.2", features = ["format"]}
+axum = "0.5.16"
+axum-extra = { version = "0.3.7", features = ["spa"] }
+tower-http = {version = "0.3.4", features = ["fs"]}
+tokio = {version = "1.21.2", features = ["full"]}
+clap = {version = "4.0.9", features = ["derive"]}

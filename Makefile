@@ -15,11 +15,10 @@ release: clean
 	cargo build --release --manifest-path=backend/Cargo.toml
 	npm run build --prefix frontend
 	powershell "mkdir release"
-	powershell "mkdir release/public"
+	powershell "mkdir release/files"
 	powershell "((Get-Content -path shared/spotify_template.json -Raw) -replace '\[PORT\]','80') | Set-Content -Path release/spotify.json"
 	powershell "copy backend/target/release/rust-backend.exe release/rust-backend.exe"
-	powershell "copy backend/rocket.toml release/rocket.toml"
-	powershell "Copy-Item -Path "frontend/build/*" -Destination "release/public" -Recurse"
+	powershell "Copy-Item -Path "frontend/build/*" -Destination "release/files" -Recurse"
 	
 debug: clean
 	powershell "((Get-Content -path shared/spotify_template.json -Raw) -replace '\[PORT\]','3000') | Set-Content -Path backend/spotify.json"
