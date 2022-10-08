@@ -3,14 +3,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration};
 use rspotify::AuthCodeSpotify;
 use rspotify::clients::{BaseClient, OAuthClient};
-use crate::{GamePreferences, GameReferences, GameState};
+use crate::{GamePreferences, GameReferences};
 use chrono::prelude::*;
 use rspotify::model::Id;
 use crate::game::Playlist;
 use std::sync::mpsc;
 
 
-pub fn spotify_loop(_state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<()>, preferences: Arc<Mutex<GamePreferences>>,
+pub fn spotify_loop(rx: mpsc::Receiver<()>, preferences: Arc<Mutex<GamePreferences>>,
                     references: Arc<Mutex<GameReferences>>) {
   loop {
     // Always lock references fist to avoid deadlock!

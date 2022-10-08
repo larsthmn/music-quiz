@@ -12,7 +12,7 @@ use simple_logger::SimpleLogger;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::ops::Deref;
-use std::sync::{Arc, mpsc, Mutex};
+use std::sync::{Arc, mpsc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, thread};
 use ts_rs::TS;
@@ -49,8 +49,8 @@ struct Opt {
 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
-async fn select_answer(Extension(state): Extension<Arc<Mutex<GameState>>>, answer: Json<AnswerFromUser>) -> Json<GameState> {
-  let mut s = state.lock().unwrap();
+async fn select_answer(Extension(state): Extension<Arc<RwLock<GameState>>>, answer: Json<AnswerFromUser>) -> Json<GameState> {
+  let mut s = state.write().unwrap();
   if let Err(err) = s.give_answer(answer.deref().clone()) {
     log::warn!("Error on giving answer: {:?}", err);
   }
@@ -180,8 +180,8 @@ async fn stop_game(Extension(references): Extension<Arc<Mutex<GameReferences>>>)
 //----------------------------------------------- GET Routes -----------------------------------------------------------
 
 // #[get("/get_state")]
-async fn get_state(Extension(state): Extension<Arc<Mutex<GameState>>>) -> Json<GameState> {
-  let s = state.lock().unwrap();
+async fn get_state(Extension(state): Extension<Arc<RwLock<GameState>>>) -> Json<GameState> {
+  let s = state.read().unwrap();
   Json(s.clone())
 }
 
@@ -294,7 +294,7 @@ async fn main() {
     }
   }
   let preferences = Arc::new(Mutex::new(game_pref));
-  let gamestate = Arc::new(Mutex::new(GameState::new()));
+  let gamestate = Arc::new(RwLock::new(GameState::new()));
 
   // Spawn Game thread
   let g = gamestate.clone();
@@ -303,10 +303,9 @@ async fn main() {
   let handle_gamethread = thread::spawn(move || { game::run(g, rx_cmd, p, r) });
 
   // Spawn spotify thread
-  let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
-  let handle_spotifythread = thread::spawn(move || { spotify_loop(g, rx_spotify, p, r) });
+  let handle_spotifythread = thread::spawn(move || { spotify_loop(rx_spotify, p, r) });
 
   // Start HTTP interface
   // SPA Router serves all files at /files, GET / gives /files/index.html

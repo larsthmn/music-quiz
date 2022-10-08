@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
@@ -257,7 +257,7 @@ fn get_epoch_ms() -> u64 {
 ///
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
-fn game_round(state: &Arc<Mutex<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
+fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
   // todo: waiting state while questions are prepared?
   // Generate questions to be answered
   let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
@@ -266,7 +266,7 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &mpsc::Receiver<GameCommand>, p
                           pref.ask_for_artist,
                           pref.ask_for_title)?;
 
-  let mut s = state.lock().unwrap();
+  let mut s = state.write().unwrap();
   let next_timeout = prepare_round(&mut s, &pref);
   drop(s);
 
@@ -279,7 +279,7 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &mpsc::Receiver<GameCommand>, p
       }
 
       // Set new question
-      let mut s = state.lock().unwrap();
+      let mut s = state.write().unwrap();
       let next_timeout = set_question(question.clone(), &mut s, &pref);
       drop(s);
 
@@ -294,7 +294,7 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &mpsc::Receiver<GameCommand>, p
 
 
       // Evaluate answers
-      let mut s = state.lock().unwrap();
+      let mut s = state.write().unwrap();
       let next_timeout = finish_question(&question, &mut s, &pref);
       drop(s);
 
@@ -306,7 +306,7 @@ fn game_round(state: &Arc<Mutex<GameState>>, rx: &mpsc::Receiver<GameCommand>, p
   }
 
   // show results
-  let mut s = state.lock().unwrap();
+  let mut s = state.write().unwrap();
   end_round(&mut s);
   drop(s);
 
@@ -440,11 +440,11 @@ fn wait_for_command(rx: &mpsc::Receiver<GameCommand>, command: GameCommand, unti
 }
 
 /// Main loop for the game thread. `rx` is used to receive game commands.
-pub fn run(state: Arc<Mutex<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>,
+pub fn run(state: Arc<RwLock<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>,
            references: Arc<Mutex<GameReferences>>) {
 
   // Wait for start by admin?
-  let mut s = state.lock().unwrap();
+  let mut s = state.write().unwrap();
   s.status = AppStatus::Ready;
   s.players = vec![];
   s.action_start = 0;
