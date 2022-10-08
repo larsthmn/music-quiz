@@ -125,7 +125,7 @@ pub struct GameReferences {
   pub spotify_client: AuthCodeSpotify,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, FromFormField, TS)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, TS)]
 #[ts(export)]
 #[ts(export_to = "../shared/")]
 pub enum ScoreMode {
@@ -185,7 +185,7 @@ pub enum GameCommand {
   StopGame,
 }
 
-#[derive(Serialize, Deserialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, Clone, TS)]
 #[ts(export)]
 #[ts(export_to = "../shared/")]
 pub struct AnswerFromUser {
