@@ -20,8 +20,10 @@ log = "0.4.16"
 rodio = "0.15.0"
 bytes = "1.1.0"
 ts-rs = {version = "6.1.2", features = ["format"]}
-axum = "0.5.16"
+axum = {version = "0.5.16", features = ["ws"]}
 axum-extra = { version = "0.3.7", features = ["spa"] }
 tower-http = {version = "0.3.4", features = ["fs"]}
 tokio = {version = "1.21.2", features = ["full"]}
 clap = {version = "4.0.9", features = ["derive"]}
+futures = "0.3.24"
+minterpolate = "0.4.0"
