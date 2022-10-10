@@ -1,5 +1,5 @@
-use axum::{Extension, response::Json, extract::Query, routing::{get, post}};
-use axum_extra::routing::SpaRouter;
+use axum::{Extension, response::Json, extract::Query, routing::{get, post}, extract::ws::{WebSocket, Message}};
+use futures::{sink::SinkExt, stream::{StreamExt, SplitSink, SplitStream}};
 use clap::Parser;
 use crate::game::{AnswerFromUser, GameState, GameReferences, GameCommand, GamePreferences, ScoreMode};
 use crate::spotify::{spotify_loop};
@@ -13,9 +13,14 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::ops::Deref;
 use std::sync::{Arc, mpsc, Mutex, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{fs, thread};
 use ts_rs::TS;
+use axum::extract::WebSocketUpgrade;
+use axum::response::IntoResponse;
+use axum_extra::routing::SpaRouter;
+use tokio::sync::Notify;
+use tokio::time::timeout;
 
 mod game;
 mod quiz;
@@ -238,6 +243,69 @@ impl SpotifyPrefs {
   }
 }
 
+
+async fn ws_handler(ws: WebSocketUpgrade, Extension(state): Extension<Arc<RwLock<GameState>>>,
+                    Extension(references): Extension<Arc<Mutex<GameReferences>>>) -> impl IntoResponse {
+  let r = references.lock().unwrap();
+  let notify1 = r.notify.clone();
+  let notify2 = r.notify.clone();
+  drop(r);
+  ws.on_upgrade(|socket| async move {
+    log::debug!("Client connected");
+    let (sender, receiver) = socket.split();
+
+    tokio::spawn(read_socket(receiver, state.clone(), notify1));
+    tokio::spawn(write_socket(sender, state, notify2));
+  })
+}
+
+async fn read_socket(mut receiver: SplitStream<WebSocket>, state: Arc<RwLock<GameState>>, notify: Arc<Notify>) {
+  while let Some(result) = receiver.next().await {
+    // Only thing that can be received is an answer (currently)
+    match result {
+      Ok(msg) => if let Ok(answer) = serde_json::from_str::<AnswerFromUser>(msg.into_text().unwrap().as_str()) {
+        let mut s = state.write().unwrap();
+        if let Err(err) = s.give_answer(answer) {
+          log::warn!("Error on giving answer: {:?}", err);
+        }
+        drop(s);
+        notify.notify_waiters();
+      },
+      Err(err) => {
+        // client disconnected
+        log::debug!("Client disconnected with error {}", err);
+        return;
+      }
+    }
+  };
+  // client disconnected
+  log::debug!("Client disconnected");
+}
+
+async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLock<GameState>>, notify: Arc<Notify>) {
+  let mut is_connected = true;
+  while is_connected
+  {
+    let json;
+    {
+      // Needs its own scope for the mutex
+      let s = state.read().unwrap();
+      json = serde_json::to_string(s.deref());
+    }
+    match json {
+      Ok(str) => {
+        let result = sender.send(Message::Text(str)).await;
+        is_connected = result.is_ok();
+      }
+      Err(..) => log::error!("Could not make JSON from GameState"),
+    }
+
+    // Wait for notification or timeout (don't care if it's a timeout or notified => ignore result)
+    let _ = timeout(Duration::from_millis(5000), notify.notified()).await;
+    log::info!("Send state");
+  }
+}
+
 #[tokio::main]
 async fn main() {
   SimpleLogger::new()
@@ -251,6 +319,7 @@ async fn main() {
   // Internal objects
   let (tx_cmd, rx_cmd) = mpsc::channel::<GameCommand>();
   let (tx_spotify, rx_spotify) = mpsc::channel::<()>(); // Nothing to be transferred, just to wakeup
+  let notify = Arc::new(Notify::new());
 
   // Read spotify preferences and create clients
   let mut spotify_prefs = SpotifyPrefs::new();
@@ -286,7 +355,7 @@ async fn main() {
 
   // Shared objects
   let references = Arc::new(Mutex::new(
-    GameReferences { tx_commands: tx_cmd, tx_spotify, spotify_client }));
+    GameReferences { tx_commands: tx_cmd, tx_spotify, spotify_client, notify }));
   let mut game_pref = GamePreferences::new();
   if let Ok(file) = fs::File::open(PREFERENCES_FILE) {
     if let Ok(p) = serde_json::from_reader::<fs::File, GamePreferences>(file) {
@@ -322,6 +391,7 @@ async fn main() {
     .route("/set", post(set_preference))
     .route("/authorize_spotify", post(authorize_spotify))
     .route("/refresh_spotify", post(refresh_spotify))
+    .route("/ws", get(ws_handler))
     .layer(Extension(gamestate))
     .layer(Extension(references))
     .layer(Extension(preferences));

@@ -8,15 +8,17 @@ import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
 import {GameState} from "../../../../shared/GameState";
 import {UserAnswerExposed} from "../../../../shared/UserAnswerExposed";
 
-const TIME_SYNC_PERIOD = 1000;
-const MIN_POLL_RATE = 150;
+const TIME_SYNC_PERIOD = 10000;
+const MIN_POLL_RATE = 1500;
 const MAX_POLL_RATE = 1000;
+const SOCKET_CHECK_RATE = 1000;
 
 export class GameView extends React.Component<any, GameState> {
-  private timer: ReturnType<typeof setTimeout> | null;
   private mounted: boolean;
-  private interval: ReturnType<typeof setInterval> | null;
+  private interval_time: ReturnType<typeof setInterval> | null;
+  private interval_socket: ReturnType<typeof setInterval> | null;
   private timediff;
+  private socket: WebSocket | undefined;
 
   static contextType = globalStateContext;
 
@@ -80,43 +82,15 @@ export class GameView extends React.Component<any, GameState> {
     //   ],
     //   hide_answers: false
     // }
-
+    this.connect = this.connect.bind(this);
     this.mounted = false;
-    this.timer = null;
-    this.interval = null;
+    this.interval_time = null;
+    this.interval_socket = null;
     this.timediff = 0;
   }
 
-  poll() {
-    if (this.mounted) {
-      this.parseResponse(fetch("/get_state"));
-    }
-  };
-
-  parseResponse(promise: Promise<Response>) {
-    // stop running timers
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-    promise.then((response) => response.json(), () => {
-      console.log("error on parsing json");
-      this.timer = setTimeout(() => this.poll(), MIN_POLL_RATE); // retry after 100ms
-    })
-      .then((data) => {
-        this.setState(data);
-        const timeout: number = Math.max(MIN_POLL_RATE,
-          Math.min(data.next_action - Date.now() + this.timediff, MAX_POLL_RATE));
-        console.log("parsed data, timeout = " + timeout);
-        this.timer = setTimeout(() => this.poll(), timeout);
-      }, () => {
-        console.log("error on getting state");
-        this.timer = setTimeout(() => this.poll(), MIN_POLL_RATE); // retry after 100ms
-      });
-  }
-
   componentDidMount() {
-    this.interval = setInterval(() => {
+    this.interval_time = setInterval(() => {
       const now = Date.now();
       fetch("/get_time?now=" + now)
         .then((response) => response.json(), () => {
@@ -130,20 +104,31 @@ export class GameView extends React.Component<any, GameState> {
           console.log("error on getting time");
         });
     }, TIME_SYNC_PERIOD);
+    this.interval_socket = setInterval(this.connect, SOCKET_CHECK_RATE);
     this.mounted = true;
-    this.poll();
   }
 
   componentWillUnmount() {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
+    if (this.interval_time) {
+      clearInterval(this.interval_time);
+      this.interval_time = null;
     }
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
+    if (this.interval_socket) {
+      clearInterval(this.interval_socket);
+      this.interval_socket = null;
     }
     this.mounted = false;
+  }
+
+  connect() {
+    // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState
+    if (this.socket === undefined || (this.socket && this.socket.readyState === 3)) {
+      this.socket = new WebSocket("ws://localhost:8000/ws");
+
+      this.socket.onmessage = (msg) => {
+        this.setState(JSON.parse(msg.data));
+      }
+    }
   }
 
   onClick(id: string) {
@@ -153,14 +138,9 @@ export class GameView extends React.Component<any, GameState> {
       "timestamp": Date.now() - this.timediff,
       "user": state.user
     }
-    this.parseResponse(fetch("/press_button", {
-      'method': 'POST',
-      'headers': {
-        'Content-Type': 'application/json',
-      },
-      'body': JSON.stringify(data)
-    }))
-    console.log("Pressed" + id);
+    let json : string = JSON.stringify(data);
+    if(this.socket) this.socket.send(json);
+    console.log("Pressed " + id);
   }
 
   render() {

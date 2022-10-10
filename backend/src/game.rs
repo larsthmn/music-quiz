@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -6,10 +7,13 @@ use rspotify::AuthCodeSpotify;
 use crate::game::GameError::{AnswerNotAllowed, InvalidState};
 use crate::quiz::{QuizError, SongQuiz};
 use ts_rs::TS;
+use tokio::sync::Notify;
 
-const MAX_POINTS_CORRECT_ANSWER: u32 = 100; /// Maximum points for correct answer
-const MIN_POINTS_CORRECT_ANSWER: u32 = 20;  /// Minimum points for correct answer
-const TIME_FULL_POINTS_MS: u32 = 900;  /// Time after question start in which full points are given (in time score mode)
+const MAX_POINTS_CORRECT_ANSWER: i32 = 100; /// Maximum points for correct answer
+const MIN_POINTS_CORRECT_ANSWER: i32 = 20;  /// Minimum points for correct answer
+const TIME_FULL_POINTS_MS: u32 = 1000;  /// Time after question start in which full points are given (in time score mode)
+const POINTS_TIME: [f32; 5] = [0.0, 1000.0, 2000.0, 3000.0, 10000.0];
+const POINTS_AMOUNT: [i32; 5] = [100, 100, 70, 50, 20];
 
 #[derive(Serialize, Clone, TS)]
 #[ts(export)]
@@ -123,13 +127,15 @@ pub struct GameReferences {
   pub tx_commands: mpsc::Sender<GameCommand>,
   pub tx_spotify: mpsc::Sender<()>,
   pub spotify_client: AuthCodeSpotify,
+  pub notify: Arc<Notify>
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, TS)]
 #[ts(export)]
 #[ts(export_to = "../shared/")]
 pub enum ScoreMode {
-  Time,
+  TimeLinear,
+  TimeFunction,
   WrongFalse,
   Order,
 }
@@ -257,7 +263,8 @@ fn get_epoch_ms() -> u64 {
 ///
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
-fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify) -> Result<(), GameError> {
+fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify,
+              notifiy: &Notify) -> Result<(), GameError> {
   // todo: waiting state while questions are prepared?
   // Generate questions to be answered
   let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
@@ -269,19 +276,21 @@ fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, 
   let mut s = state.write().unwrap();
   let next_timeout = prepare_round(&mut s, &pref);
   drop(s);
+  notifiy.notify_waiters();
 
   // Wait for game start or stopping game
   if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
     // Init results of this round
     for question in quiz.get_questions().clone() {
-      if let Err(e) = quiz.begin_question_action(question.index as usize) {
-        log::warn!("Begin question failed with error: {:?}", e);
-      }
-
-      // Set new question
+      // Set new question (state is changed first so the user sees the question before the music starts -
+      // could also be done the other way around, but then the music may start when users do not see the question yet)
       let mut s = state.write().unwrap();
       let next_timeout = set_question(question.clone(), &mut s, &pref);
       drop(s);
+      notifiy.notify_waiters();
+      if let Err(e) = quiz.begin_question_action(question.index as usize) {
+        log::warn!("Begin question failed with error: {:?}", e);
+      }
 
       // Wait for users to answer or stopping game
       if wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
@@ -292,11 +301,11 @@ fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, 
         log::warn!("End question failed with error: {:?}", e);
       }
 
-
       // Evaluate answers
       let mut s = state.write().unwrap();
       let next_timeout = finish_question(&question, &mut s, &pref);
       drop(s);
+      notifiy.notify_waiters();
 
       // Wait for next question or stopping game
       if wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
@@ -358,7 +367,7 @@ fn finish_question(question: &Question, s: &mut GameState, pref: &GamePreference
 /**
 Calculate the points depending on needed time and maximum time to answer
 */
-fn calc_points_time(time_needed_for_answer: u64, max_answer_time: u64) -> u32 {
+fn calc_points_time(time_needed_for_answer: u64, max_answer_time: u64) -> i32 {
   if time_needed_for_answer <= TIME_FULL_POINTS_MS as u64 {
     MAX_POINTS_CORRECT_ANSWER
   } else {
@@ -366,7 +375,7 @@ fn calc_points_time(time_needed_for_answer: u64, max_answer_time: u64) -> u32 {
     let part_needed = time_after_deadzone as f32 / (max_answer_time - TIME_FULL_POINTS_MS as u64) as f32;
     ((1.0 - part_needed).max(0.0) *
       (MAX_POINTS_CORRECT_ANSWER - MIN_POINTS_CORRECT_ANSWER) as f32 + MIN_POINTS_CORRECT_ANSWER as f32)
-      .round() as u32
+      .round() as i32
   }
 }
 
@@ -383,12 +392,13 @@ fn calc_points(s: &mut GameState, pref: &GamePreferences) {
       // Points need to be calculated here, because later s can't be borrowed (since score = mutable borrow)
       let time_needed_for_answer = user_ans.ts - s.action_start;
       let mut points_if_correct: i32 = match pref.scoremode {
-        ScoreMode::Time => calc_points_time(time_needed_for_answer, s.next_action - s.action_start) as i32,
-        ScoreMode::Order => (MAX_POINTS_CORRECT_ANSWER - pos as u32 * 10) as i32,
-        ScoreMode::WrongFalse => MAX_POINTS_CORRECT_ANSWER as i32
+        ScoreMode::TimeLinear => calc_points_time(time_needed_for_answer, s.next_action - s.action_start) as i32,
+        ScoreMode::TimeFunction => minterpolate::linear_interpolate(time_needed_for_answer as f32, &POINTS_TIME, &POINTS_AMOUNT, false),
+        ScoreMode::Order => min(MIN_POINTS_CORRECT_ANSWER, MAX_POINTS_CORRECT_ANSWER - pos as i32 * 10),
+        ScoreMode::WrongFalse => MAX_POINTS_CORRECT_ANSWER
       };
-      points_if_correct = std::cmp::max(MIN_POINTS_CORRECT_ANSWER as i32,
-                                        std::cmp::min(MAX_POINTS_CORRECT_ANSWER as i32, points_if_correct));
+      points_if_correct = std::cmp::max(MIN_POINTS_CORRECT_ANSWER,
+                                        std::cmp::min(MAX_POINTS_CORRECT_ANSWER, points_if_correct));
       let score = s.players
         .iter_mut()
         .find(|score| score.player == user_ans.user)
@@ -443,6 +453,10 @@ fn wait_for_command(rx: &mpsc::Receiver<GameCommand>, command: GameCommand, unti
 pub fn run(state: Arc<RwLock<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>,
            references: Arc<Mutex<GameReferences>>) {
 
+  let r = references.lock().unwrap();
+  let notifiy = r.notify.clone();
+  drop(r);
+
   // Wait for start by admin?
   let mut s = state.write().unwrap();
   s.status = AppStatus::Ready;
@@ -451,19 +465,25 @@ pub fn run(state: Arc<RwLock<GameState>>, rx: mpsc::Receiver<GameCommand>, prefe
   s.next_action = 0;
   s.current_question = None;
   drop(s);
+  notifiy.notify_waiters();
 
   loop {
     // wait for game start
-    log::info!("Start round");
     wait_for_game_start(&rx);
+    log::info!("Start round");
 
+    // Get preferences
     let p_mut = preferences.lock().unwrap();
     let pref = p_mut.clone();
     drop(p_mut);
+
+    // Get spotify auth code
     let r_mut = references.lock().unwrap();
     let spotify = r_mut.spotify_client.clone();
     drop(r_mut);
-    match game_round(&state, &rx, pref, spotify) {
+
+    // Play one round
+    match game_round(&state, &rx, pref, spotify, &notifiy) {
       Ok(()) => log::info!("Round ended"),
       Err(e) => log::warn!("Round ended with error: {:?}", e)
     }
@@ -506,20 +526,5 @@ impl From<&'static str> for GameError {
 impl From<QuizError> for GameError {
   fn from(e: QuizError) -> Self {
     GameError::QuizError(e)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn points() {
-    let points = calc_points_time(1000, 1000);
-    assert_eq!(MIN_POINTS_CORRECT_ANSWER, points);
-    assert_eq!(MAX_POINTS_CORRECT_ANSWER, calc_points_time(0, 1000));
-    assert_eq!((MAX_POINTS_CORRECT_ANSWER + MIN_POINTS_CORRECT_ANSWER) / 2,
-               calc_points_time(1000 + TIME_FULL_POINTS_MS as u64,
-                                2000 + TIME_FULL_POINTS_MS as u64));
   }
 }

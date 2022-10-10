@@ -6,13 +6,15 @@ import {Link} from "react-router-dom";
 import {GamePreferences} from "../../../../shared/GamePreferences";
 
 enum ScoreMode {
-  Time = "Time",
+  TimeLinear = "TimeLinear",
+  TimeFunction = "TimeFunction",
   WrongFalse = "WrongFalse",
   Order = "Order"
 }
 
 const SCORE_MODES: SingleSelectionElement[] = [
-  {name: ScoreMode.Time, description: "Zeit"},
+  {name: ScoreMode.TimeFunction, description: "Zeit (Funktion)"},
+  {name: ScoreMode.TimeLinear, description: "Zeit (linear)"},
   {name: ScoreMode.WrongFalse, description: "Nur richtig/falsch"},
   {name: ScoreMode.Order, description: "Reihenfolge"}];
 
