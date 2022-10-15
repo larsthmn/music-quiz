@@ -20,6 +20,11 @@ make debug
 to copy the spotify config to the frontend and backend folders. 
 This has only to be done once at the setup and when the original spotify.json is changed.
 
+First, run `cargo test` to generate the TypeScript API objects into the `shared` directory.
+
+Compile and start the rust server in debug build with the option `-p 8000 -a 127.0.0.1`.
+This starts the backend locally on port 8000 to handle all API calls.
+
 Change to the `frontend` directory and start the frontend with
 ```
 npm start
@@ -28,9 +33,6 @@ This runs the app in the development mode.
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 The page will reload if you make edits.
 You will also see any lint errors in the console.
-
-Compile and start the rust server in debug build with the option `-p 8000 -a 127.0.0.1`. 
-This starts the backend locally on port 8000 to handle all API calls.
 
 While developing, routes are first handles by React and forwarded to its configured proxy (localhost:8000 and thereby
 to the Rust backend) if React doesn't know the route.

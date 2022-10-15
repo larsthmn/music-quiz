@@ -4,3 +4,41 @@
   width: 100%;
   margin: auto;
 }
+
+.indicator {
+  top: 5px;
+  left: 10px;
+  font-size: small;
+  color: darkgrey;
+  position: fixed;
+  display: flex;
+  align-items: center;
+
+  &:before {
+    content: ' ';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 10px;
+    border: 1px solid #000;
+    border-radius: 8px;
+  }
+
+  &.Open:before {
+    background-color: #94E185;
+    border-color: #78D965;
+    box-shadow: 0 0 4px 1px #94E185;
+  }
+
+  &.Connecting:before &.Closing:before {
+    background-color: #FFC182;
+    border-color: #FFB161;
+    box-shadow: 0 0 4px 1px #FFC182;
+  }
+
+  &.Closed:before {
+    background-color: #C9404D;
+    border-color: #C42C3B;
+    box-shadow: 0 0 4px 1px #C9404D;
+  }
+}

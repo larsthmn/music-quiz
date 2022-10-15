@@ -7,17 +7,30 @@ import {Link} from 'react-router-dom';
 import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
 import {GameState} from "../../../../shared/GameState";
 import {UserAnswerExposed} from "../../../../shared/UserAnswerExposed";
+import {DataType} from "../../../../shared/DataType";
+import {WebSocketMessage} from "../../../../shared/WebSocketMessage";
+import {TimeAnswer} from "../../../../shared/TimeAnswer";
+import {TimeRequest} from "../../../../shared/TimeRequest";
 
-const TIME_SYNC_PERIOD = 10000;
-const MIN_POLL_RATE = 1500;
-const MAX_POLL_RATE = 1000;
+const TIME_SYNC_PERIOD = 1000;
 const SOCKET_CHECK_RATE = 1000;
+
+(BigInt.prototype as any).toJSON = function () {
+  return Number(this);
+};
+
+enum SocketState {
+  Connecting = 0, // Socket has been created. The connection is not yet open.
+  Open = 1, // The connection is open and ready to communicate.
+  Closing = 2, // The connection is in the process of closing.
+  Closed = 3 //	The connection is closed or couldn't be opened.
+}
 
 export class GameView extends React.Component<any, GameState> {
   private mounted: boolean;
   private interval_time: ReturnType<typeof setInterval> | null;
   private interval_socket: ReturnType<typeof setInterval> | null;
-  private timediff;
+  private timediff : bigint;
   private socket: WebSocket | undefined;
 
   static contextType = globalStateContext;
@@ -86,23 +99,21 @@ export class GameView extends React.Component<any, GameState> {
     this.mounted = false;
     this.interval_time = null;
     this.interval_socket = null;
-    this.timediff = 0;
+    this.timediff = BigInt(0);
   }
 
   componentDidMount() {
     this.interval_time = setInterval(() => {
       const now = Date.now();
-      fetch("/get_time?now=" + now)
-        .then((response) => response.json(), () => {
-          console.log("error on parsing json");
-        })
-        .then((data) => {
-          console.log("timediff " + data.diff_receive + "ms");
-          // todo: better time synch, use roundtrip time or something
-          this.timediff = data.diff_receive;
-        }, () => {
-          console.log("error on getting time");
-        });
+      if (this.socket && this.socket.readyState === 1) {
+        const time_request : TimeRequest = {now: BigInt(now)};
+        const message : WebSocketMessage = {
+          message_type: "Time",
+          data: JSON.stringify(time_request)
+        }
+        this.socket.send(JSON.stringify(message));
+        console.log("time requested");
+      }
     }, TIME_SYNC_PERIOD);
     this.interval_socket = setInterval(this.connect, SOCKET_CHECK_RATE);
     this.mounted = true;
@@ -118,6 +129,7 @@ export class GameView extends React.Component<any, GameState> {
       this.interval_socket = null;
     }
     this.mounted = false;
+    this.socket?.close();
   }
 
   connect() {
@@ -126,7 +138,19 @@ export class GameView extends React.Component<any, GameState> {
       this.socket = new WebSocket("ws://localhost:8000/ws");
 
       this.socket.onmessage = (msg) => {
-        this.setState(JSON.parse(msg.data));
+        const ws_msg : WebSocketMessage = JSON.parse(msg.data);
+        switch (ws_msg.message_type) {
+          case "GameState":
+            this.setState(JSON.parse(ws_msg.data));
+            break;
+          case "Time":
+            const time_ans : TimeAnswer = JSON.parse(ws_msg.data);
+            this.timediff = time_ans.diff_receive;
+            console.log("timediff is " + this.timediff);
+            break;
+          default:
+            break;
+        }
       }
     }
   }
@@ -135,11 +159,14 @@ export class GameView extends React.Component<any, GameState> {
     const {state} = this.context;
     const data = {
       "id": id,
-      "timestamp": Date.now() - this.timediff,
+      "timestamp": Date.now() - Number(this.timediff),
       "user": state.user
     }
-    let json : string = JSON.stringify(data);
-    if(this.socket) this.socket.send(json);
+    const message : WebSocketMessage = {
+      message_type: "Answer",
+      data: JSON.stringify(data)
+    }
+    if(this.socket) this.socket.send(JSON.stringify(message));
     console.log("Pressed " + id);
   }
 
@@ -147,6 +174,7 @@ export class GameView extends React.Component<any, GameState> {
     const data = this.state;
     const {state} = this.context;
     let content = <h2>Unbekannter Spielstatus...</h2>;
+    const socket_state: SocketState = this.socket ? (this.socket.readyState) : SocketState.Closed;
 
     if (data != null) {
       switch (data.status) {
@@ -178,7 +206,7 @@ export class GameView extends React.Component<any, GameState> {
               </h2>
               <div className={'button_container'}>
                 <TimeBar key={Math.random()} total_time={Number(data.next_action - data.action_start)}
-                         elapsed={Date.now() - Number(data.action_start) - this.timediff}
+                         elapsed={Date.now() - Number(data.action_start - this.timediff)}
                          colorful={data.status === "InGameAnswerPending"}/>
                 {buttons}
               </div>
@@ -199,7 +227,7 @@ export class GameView extends React.Component<any, GameState> {
             <div>
               <h2>Bereitmachen</h2>
               <TimeBar key={Math.random()} total_time={Number(data.next_action - data.action_start)}
-                       elapsed={Date.now() - Number(data.action_start) - this.timediff}
+                       elapsed={Date.now() - Number(data.action_start - this.timediff)}
                        colorful={true}/>
             </div>;
           break;
@@ -214,6 +242,7 @@ export class GameView extends React.Component<any, GameState> {
     return (
       <div>
         <div>
+          <label className={`indicator ${SocketState[socket_state]}`}>{SocketState[socket_state]}</label>
           <Link to='/'>
             <button className={'backbutton'}/>
           </Link>
