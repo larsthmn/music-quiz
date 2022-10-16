@@ -8,9 +8,9 @@ import {globalStateContext} from "../GlobalStateProvider/GlobalStateProvider";
 import {GameState} from "../../../../shared/GameState";
 import {UserAnswerExposed} from "../../../../shared/UserAnswerExposed";
 import {WebSocketMessage} from "../../../../shared/WebSocketMessage";
-import {TimeAnswer} from "../../../../shared/TimeAnswer";
 import {TimeRequest} from "../../../../shared/TimeRequest";
-import {DEFAULT_GAME_STATE, SOCKET_CHECK_RATE, TIME_SYNC_PERIOD} from "./GameViewConstants";
+import {TimeAnswer} from "../../../../shared/TimeAnswer";
+import {DEFAULT_GAME_STATE, SOCKET_CHECK_RATE, TEST_GAME_STATE, TIME_SYNC_PERIOD} from "./GameViewConstants";
 import {config} from "../../constants";
 
 enum SocketState {
@@ -49,6 +49,11 @@ export class GameView extends React.Component<any, GameViewState> {
       ping: 0,
       socket_state: SocketState.Closed
     };
+    // this.state = {
+    //   gamestate: TEST_GAME_STATE,
+    //   ping: 10,
+    //   socket_state: SocketState.Open
+    // };
     this.connect = this.connect.bind(this);
     this.mounted = false;
     this.interval_time = null;
@@ -156,8 +161,8 @@ export class GameView extends React.Component<any, GameViewState> {
 
           content =
             <div>
+              <label className={`game-progress`}>{data.current_question !== null ? (data.current_question.index + 1) : ""}/{data.current_question?.total_questions}</label>
               <h2>
-                ({data.current_question !== null ? (data.current_question.index + 1) : ""}/{data.current_question?.total_questions})&nbsp;
                 {data.status === "InGameAnswerPending" && data.current_question?.text}
                 {data.status === "InGameWaitForNextQuestion" && "Lösung: " + data.current_question?.solution}
               </h2>

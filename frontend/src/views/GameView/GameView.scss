@@ -43,3 +43,14 @@
     box-shadow: 0 0 4px 1px #C9404D;
   }
 }
+
+.game-progress {
+  top: 5px;
+  right: 10px;
+  font-size: small;
+  color: darkgrey;
+  position: fixed;
+  display: flex;
+  align-items: center;
+  background-color: transparent;
+}

@@ -37,7 +37,7 @@ export const TEST_GAME_STATE : GameState = {
         id: "MC Thunder"
       }
     ],
-    correct: null,
+    correct: "Blind Man",
     solution: null,
     index: 1,
     total_questions: 5
@@ -51,6 +51,24 @@ export const TEST_GAME_STATE : GameState = {
       last_points: 10,
       // last_points: 60,
       last_time: 0.3,
+    },
+    {
+      player: "Myje",
+      points: 46,
+      correct: 1,
+      answers_given: 1,
+      last_points: 10,
+      // last_points: 60,
+      last_time: 5.312,
+    },
+    {
+      player: "Nils",
+      points: 12,
+      correct: 2,
+      answers_given: 2,
+      last_points: 100,
+      // last_points: 60,
+      last_time: 1.312,
     }
   ],
   given_answers: [

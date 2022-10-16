@@ -56,13 +56,15 @@ export class TimeBar extends React.Component<TimeBarProps, TimeBarState> {
       animationDuration: this.props.total_time + "ms",
       animationDelay: -this.state.elapsed + "ms",
       animationName: this.props.colorful ? "timeanimation-color" : "timeanimation",
-      backgroundColor: this.props.colorful ? "lightgrey" : "grey",
+      // backgroundColor: this.props.colorful ? "lightgrey" : "grey",
     };
     return (
       <div className="timebar-container">
-        <div key={Math.random()} className="timebar" style={style}/>
-        <div className="timebar-text">{Math.round((this.props.total_time - this.state.elapsed) / 1000)}s</div>
-        {/*<div className="timebar-text">{this.props.total_time - this.state.elapsed}ms</div>*/}
+        <div className="timebar-background">
+          <div key={Math.random()} className="timebar" style={style}/>
+          <div className="timebar-text">{Math.round((this.props.total_time - this.state.elapsed) / 1000)}s</div>
+          {/*<div className="timebar-text">{this.props.total_time - this.state.elapsed}ms</div>*/}
+        </div>
       </div>
     );
   }

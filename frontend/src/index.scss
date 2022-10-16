@@ -5,6 +5,15 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  background: -webkit-linear-gradient(45deg, #282e36 10%, #2c303a 90%);
+  background: -moz-linear-gradient(45deg, #282e36 10%, #2c303a 90%);
+  background: -ms-linear-gradient(45deg, #282e36 10%, #2c303a 90%);
+  background: -o-linear-gradient(45deg, #282e36 10%, #2c303a 90%);
+  background: linear-gradient(45deg, #282e36 10%, #2c303a 90%);
+  background-size: 100% auto;
+  background-attachment: fixed;
+
 }
 
 code {
@@ -19,29 +28,19 @@ code {
 
 h1, h2, h3 {
   text-align: center;
+  color: white;
+  text-shadow: rgba(255, 255, 255, 0.35) 0 0 20px;
 }
 
 h1 {
   font-size: large;
 }
 
-//div {
-//  //display: flex;
-//  flex-direction: column;
-//}
-//
-//div > * {
-//  width: 100%;
-//  //margin: 10px;
-//  border: #2980b9 solid 1px;
-//  box-sizing: border-box;
-//}
-
 button {
   padding: 15px 32px;
   text-align: center;
   font-size: large;
-  border-radius: 15px;
+  border-radius: 5px;
   border: none;
   margin: 10px 0;
   height: 50px;
@@ -63,10 +62,10 @@ button {
 
   background-image: linear-gradient(
                   to right,
-                  #29323c,
-                  #485563,
-                  #2b5876,
-                  #4e4376
+                  #445364,
+                  #63778c,
+                  #3a759d,
+                  #5f528f
   );
   box-shadow: 0 4px 15px 0 rgba(45, 54, 65, 0.75);
 
@@ -80,7 +79,7 @@ select {
 }
 
 .backbutton {
-  background: url("images/back-arrow.svg") no-repeat scroll center center #29323c;
+  background: url("images/back-arrow.svg") no-repeat scroll center center #445364;
   height: 50px;
   width: 50px;
   position: fixed;
@@ -88,7 +87,7 @@ select {
   right: 20px;
 
   &:hover {
-    background-position: 30% 50%;
+    background-position: 40% 50%;
   }
 }
 

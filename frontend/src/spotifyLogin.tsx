@@ -1,5 +1,7 @@
-import {useNavigate} from "react-router-dom";
 import spotifyJson from "./spotify.json";
+import {config} from "./constants";
+
+// todo: use different json in devel/prod instead of config
 
 export const spotifyLogin = () => {
 
@@ -18,7 +20,7 @@ export const spotifyLogin = () => {
     + '?response_type=code'
     + '&client_id=' + encodeURIComponent(spotifyJson.client_id)
     + '&scope=' + encodeURIComponent(spotifyJson.scopes.join(" "))
-    + '&redirect_uri=' + encodeURIComponent(spotifyJson.redirect_uri)
+    + '&redirect_uri=' + encodeURIComponent(config.SPOTIFY_REDIRECT_URL)
     + '&state=' + encodeURIComponent(state);
   window.location.assign(url);
 }
@@ -33,7 +35,7 @@ export const spotifyGetAccessToken = (code: string) => {
     body: new URLSearchParams({
       'grant_type': 'authorization_code',
       'code': code,
-      'redirect_uri': spotifyJson.redirect_uri
+      'redirect_uri': config.SPOTIFY_REDIRECT_URL
     })
   })
 }
