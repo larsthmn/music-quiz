@@ -1,27 +1,29 @@
-@mixin timebarstyle {
-  border-radius: .5rem;
-  height: 25px;
-}
-
-.timebar-container {
-  @include timebarstyle;
-  margin-bottom: 20px;
-  background-color: lightgrey;
+.timebar-background {
+  color: white; // color of text
+  padding: 4px; // size of border around bar
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px rgba(255, 255, 255, 0.08);
   display: grid;
+  > * {
+    grid-area: 1/1;
+  }
 }
 
 .timebar {
-  @include timebarstyle;
-  grid-area: 1 / 1;
+  text-shadow: rgba(255, 255, 255, 0.35) 0 0 10px;
+  border-radius: 4px;
   animation-timing-function: linear;
   animation-fill-mode: none;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.05));
+  background-color: #63778c;
   // duration and delay given by style
 }
 
 .timebar-text {
-  text-shadow: white 2px 2px 3px;
+  text-shadow: rgba(255, 255, 255, 0.35) 0 0 10px;
   font-size: large;
-  color: black;
+  color: white;
   text-align: center;
   grid-area: 1 / 1;
   justify-content: center;
@@ -37,8 +39,8 @@
     width: 100%;
   }
 
-  0%   {background-color: green;}
-  30%  {background-color: green;}
+  0%   {background-color: #408d40;}
+  30%  {background-color: #408d40;}
   60%  {background-color: yellow;}
   100% {background-color: red;}
 }

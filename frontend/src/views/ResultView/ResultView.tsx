@@ -21,10 +21,15 @@ export const ResultView: React.FC<ResultViewProps> = ({results, small, title}) =
           <div className="result-bar-layout">
             <div className="player-name">{res.player}</div>
             <div className="result-bar-container">
-              <div className="result-bar-background"/>
-              <div className="result-bar" style={{width: String((res.points / max) * 100) + "%"}}/>
-              <div className="result-text-left">{res.points} ({res.correct} / {res.answers_given})</div>
-              {res.last_points !== null ? <div className="result-text-right">{res.last_time}s ({res.last_points === 0 ? "falsch" : "+" + res.last_points})</div> : null}
+              <div className="result-bar-background">
+                <div className="result-bar" style={{width: String((res.points / max) * 100) + "%"}}/>
+                <div className="result-bar alt-color" style={{width: String(((res.last_points || 0) / max) * 100) + "%"}}/>
+                <div className="result-text">
+                  <div className="result-text-left">{res.points} ({res.correct} / {res.answers_given})</div>
+                  <div className="result-text-right">{res.last_points !== null ? <div className="result-text-right">{res.last_time}s ({res.last_points === 0 ? "falsch" : "+" + res.last_points})</div> : null}</div>
+                </div>
+              </div>
+
             </div>
           </div>
         );

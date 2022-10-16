@@ -1,7 +1,6 @@
-import React, {useEffect} from "react";
+import React from "react";
 import {useLocation, useNavigate, useSearchParams} from "react-router-dom";
 import queryString from 'query-string';
-import {spotifyGetAccessToken} from "../../spotifyLogin";
 
 export const sendToBackend = (json: string) => {
   console.log("send to backend" + json);
@@ -17,7 +16,7 @@ export const sendToBackend = (json: string) => {
 export const RedirectView = () => {
   const {hash} = useLocation();
   const parsedHash = queryString.parse(hash);
-  const [params, setSearchParams] = useSearchParams()
+  const [params] = useSearchParams()
   console.log("Received token" + hash);
   console.log(params.get('code'));
 
