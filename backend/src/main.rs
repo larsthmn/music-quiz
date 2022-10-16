@@ -19,10 +19,7 @@ mod quiz;
 mod spotify;
 mod communication;
 
-// todo: use websockets
-
 const PREFERENCES_FILE: &'static str = "preferences.json";
-const SPOTIFY_FILE: &'static str = "spotify.json";
 
 // Setup the command line interface with clap.
 #[derive(Parser, Debug)]
@@ -31,6 +28,10 @@ struct Opt {
   /// set the log level
   #[clap(short = 'l', long = "log", default_value = "debug")]
   log_level: String,
+
+  /// set the spotify config file
+  #[clap(short = 's', long = "spotify", default_value = "spotify.json")]
+  spotify_json: String,
 
   /// set the listen addr
   #[clap(short = 'a', long = "addr", default_value = "0.0.0.0")]
@@ -50,7 +51,7 @@ struct Opt {
 async fn main() {
   SimpleLogger::new()
     .with_level(LevelFilter::Warn)
-    .with_module_level("rust_backend", LevelFilter::Debug)
+    .with_module_level("music_quiz", LevelFilter::Debug)
     .init()
     .unwrap();
 
@@ -66,15 +67,15 @@ async fn main() {
 
   // Read spotify preferences and create clients
   let mut spotify_prefs = SpotifyPrefs::new();
-  if let Ok(file) = fs::File::open(SPOTIFY_FILE) {
+  if let Ok(file) = fs::File::open(&opt.spotify_json) {
     if let Ok(s) = serde_json::from_reader::<fs::File, SpotifyPrefs>(file) {
       spotify_prefs = s;
-      log::info!("Successfully read file {}", SPOTIFY_FILE);
+      log::info!("Successfully read file {}", &opt.spotify_json);
     } else {
-      log::warn!("File {} not in expected format, using default", SPOTIFY_FILE);
+      log::warn!("File {} not in expected format, using default", &opt.spotify_json);
     }
   } else {
-    log::warn!("Did not find {}, using default", SPOTIFY_FILE);
+    log::warn!("Did not find {}, using default", &opt.spotify_json);
   }
   let creds = Credentials { id: spotify_prefs.client_id, secret: Some(spotify_prefs.client_secret) };
   let redirect_uri = spotify_prefs.redirect_uri;

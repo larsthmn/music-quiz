@@ -164,19 +164,23 @@ pub async fn get_preferences(Extension(preferences): Extension<Arc<Mutex<GamePre
 #[ts(export)]
 #[ts(export_to = "../shared/")]
 pub struct TimeAnswer {
+  #[ts(type = "number")]
   diff_receive: i64,
+  #[ts(type = "number")]
   ts: u64,
+  #[ts(type = "number")]
+  ts_received: u64
 }
 
-pub async fn get_time(Query(params): Query<HashMap<String, i64>>) -> Json<TimeAnswer> {
+pub async fn get_time(Query(params): Query<HashMap<String, u64>>) -> Json<TimeAnswer> {
   let now_ms = SystemTime::now()
     .duration_since(UNIX_EPOCH)
     .expect("System time is < UNIX_EPOCH")
     .as_millis() as u64;
   let now = params.get("now");
   match now {
-    Some(&now) => Json(TimeAnswer { diff_receive: now as i64 - now_ms as i64, ts: now_ms }),
-    None => Json(TimeAnswer { diff_receive: 0, ts: now_ms })
+    Some(&now) => Json(TimeAnswer { diff_receive: now as i64 - now_ms as i64, ts: now_ms, ts_received: now }),
+    None => Json(TimeAnswer { diff_receive: 0, ts: now_ms, ts_received: 0 })
   }
 }
 
@@ -215,6 +219,7 @@ impl SpotifyPrefs {
 #[ts(export)]
 #[ts(export_to = "../shared/")]
 pub struct TimeRequest {
+  #[ts(type = "number")]
   now: u64,
 }
 
@@ -277,17 +282,17 @@ async fn read_socket(mut receiver: SplitStream<WebSocket>, state: Arc<RwLock<Gam
             DataType::Time => {
               // User sent his timestamp, answer with diff
               match serde_json::from_str::<TimeRequest>(msg.data.as_str()) {
-                Ok(answer) => {
+                Ok(request) => {
                   // State changes when answer is given, send broadcast with new state
                   let now_ms = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("System time is < UNIX_EPOCH")
                     .as_millis() as u64;
-                  let answer = TimeAnswer { diff_receive: answer.now as i64 - now_ms as i64, ts: now_ms };
+                  let answer = TimeAnswer { diff_receive: request.now as i64 - now_ms as i64, ts: now_ms , ts_received: request.now };
                   if let Err(e) = tx_single.send((&answer).into()).await {
                     log::warn!("Error on sending time answer {:?}", e);
                   }
-                },
+                }
                 Err(e) => log::warn!("Invalid time request: {:?}", e)
               }
             }
@@ -309,14 +314,30 @@ async fn read_socket(mut receiver: SplitStream<WebSocket>, state: Arc<RwLock<Gam
 
 async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLock<GameState>>,
                       mut rx_broadcast: Receiver<Message>, mut rx: tokio::sync::mpsc::Receiver<Message>) {
+  // initial package after connection to give client the current state as fast as possible
+  log::debug!("Send first");
+  // Make message from state and send
+  let msg : Message = (||
+    {
+      let s = state.read().unwrap();
+      Message::from(s.deref())
+    })();
+  if sender.send(msg).await.is_err() {
+    return;
+  }
+
+  const MIN_STATE_PERIOD : u64 = 500;
+
+  // Timer to ensure that the state is sent after some time without broadcasts
+  let timer = tokio::time::sleep(Duration::from_millis(MIN_STATE_PERIOD));
+  tokio::pin!(timer);
   loop
   {
-    let timer = tokio::time::sleep(Duration::from_millis(5000));
-
     select! {
       // Send state periodically
-      _ = timer => {
+      _ = &mut timer => {
         log::debug!("Send interval");
+        timer.as_mut().reset(tokio::time::Instant::now() + Duration::from_millis(MIN_STATE_PERIOD));
         // Make message from state and send
         let msg : Message = (||
         {
@@ -331,20 +352,31 @@ async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLo
       // Send received messages
       res = rx_broadcast.recv() => {
         log::debug!("Send broadcast");
+        timer.as_mut().reset(tokio::time::Instant::now() + Duration::from_millis(MIN_STATE_PERIOD));
         match res {
           Ok(msg) => if sender.send(msg).await.is_err() {
-              return; // Send failed
-            },
-          Err(_) => return // Channel has been closed
+            // Send failed
+            log::debug!("Send broadcast failed, closing");
+            return;
+          },
+          Err(_) => { // Channel has been closed
+            log::debug!("Broadcast channel has been closed");
+            return;
+          }
         }
       },
       res = rx.recv() => {
         log::debug!("Send single msg");
         match res {
           Some(msg) => if sender.send(msg).await.is_err() {
+              log::debug!("Send single failed, closing");
               return; // Send failed
             },
-          None => return // Channel has been closed
+          None => {
+            // Channel has been closed
+            log::debug!("Single channel closed, closing");
+            return;
+          }
         }
       },
     }
