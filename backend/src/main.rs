@@ -1,5 +1,6 @@
 use std::{fs, thread};
 use std::net::{Ipv4Addr, SocketAddr};
+use std::str::FromStr;
 use std::sync::{Arc, mpsc, Mutex, RwLock};
 use axum::{Extension, extract::ws::Message, routing::{get, post}};
 use axum_extra::routing::SpaRouter;
@@ -26,7 +27,7 @@ const PREFERENCES_FILE: &'static str = "preferences.json";
 #[clap(name = "musicquiz-server", about = "Music Quiz Server")]
 struct Opt {
   /// set the log level
-  #[clap(short = 'l', long = "log", default_value = "debug")]
+  #[clap(short = 'l', long = "log", default_value = "WARN")]
   log_level: String,
 
   /// set the spotify config file
@@ -49,13 +50,13 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
+  let opt = Opt::parse();
+
   SimpleLogger::new()
     .with_level(LevelFilter::Warn)
-    .with_module_level("music_quiz", LevelFilter::Debug)
+    .with_module_level("music_quiz", LevelFilter::from_str(opt.log_level.as_str()).unwrap())
     .init()
     .unwrap();
-
-  let opt = Opt::parse();
 
   // Internal objects
   // channel to send GameCommands like start and stop to the game thread
