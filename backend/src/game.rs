@@ -23,6 +23,7 @@ const POINTS_AMOUNT: [i32; 5] = [100, 100, 70, 50, 20];
 pub struct UserAnswerExposed {
   answer_id: String,
   user: String,
+  #[ts(type = "number")]
   ts: u64,
 }
 
@@ -89,7 +90,9 @@ pub enum AppStatus {
 #[ts(export_to = "../shared/")]
 pub struct GameState {
   status: AppStatus,
+  #[ts(type = "number")]
   action_start: u64,
+  #[ts(type = "number")]
   next_action: u64,
   current_question: Option<Question>,
   players: Vec<PlayerScoreAPI>,
@@ -172,6 +175,7 @@ pub enum GameCommand {
 #[ts(export_to = "../shared/")]
 pub struct AnswerFromUser {
   id: String,
+  #[ts(type = "number")]
   timestamp: u64,
   user: String,
 }
@@ -293,6 +297,7 @@ fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, 
   // show results
   let mut s = state.write().unwrap();
   end_round(&mut s);
+  let _ = tx_broadcast.send(s.deref().into());
   drop(s);
 
   Ok(())

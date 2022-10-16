@@ -55,6 +55,8 @@ backend/.spotify_token_cache.json
 backend/preferences.json
 frontend/src/spotify.json
 backend/spotify.json
+backend/spotify_devel.json
+frontend/src/spotify_devel.json
 
 # Generated TS data structures
 shared/*.ts

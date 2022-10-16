@@ -1211,6 +1211,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "music-quiz"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "axum-extra",
+ "bytes",
+ "chrono",
+ "clap",
+ "futures",
+ "log",
+ "minterpolate",
+ "rand",
+ "reqwest",
+ "rodio",
+ "rspotify",
+ "serde",
+ "serde_json",
+ "simple_logger",
+ "strum",
+ "strum_macros",
+ "thiserror",
+ "tokio",
+ "tower-http",
+ "ts-rs",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1941,33 +1968,6 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
-]
-
-[[package]]
-name = "rust-backend"
-version = "0.2.0"
-dependencies = [
- "axum",
- "axum-extra",
- "bytes",
- "chrono",
- "clap",
- "futures",
- "log",
- "minterpolate",
- "rand",
- "reqwest",
- "rodio",
- "rspotify",
- "serde",
- "serde_json",
- "simple_logger",
- "strum",
- "strum_macros",
- "thiserror",
- "tokio",
- "tower-http",
- "ts-rs",
 ]
 
 [[package]]
