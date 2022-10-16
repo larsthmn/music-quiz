@@ -189,6 +189,10 @@ export class GameView extends React.Component<any, GameViewState> {
             </div>;
           break;
 
+        case "Preparing":
+          content = <h2>Runde wird vorbereitet...</h2>;
+          break;
+
         case "Shutdown":
         default:
           content = <h2>Warte auf Server...</h2>;

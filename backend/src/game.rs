@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc;
+use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use axum::extract::ws::Message;
 use serde::{Deserialize, Serialize};
@@ -79,6 +80,7 @@ pub enum AppStatus {
   Shutdown,
   Ready,
   BeforeGame,
+  Preparing,
   InGameAnswerPending,
   InGameWaitForNextQuestion,
   BetweenRounds,
@@ -245,8 +247,11 @@ fn get_epoch_ms() -> u64 {
 /// Preferences stay the same for the whole round.
 fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify,
               tx_broadcast: &Sender<Message>) -> Result<(), GameError> {
-  // todo: waiting state while questions are prepared?
   // Generate questions to be answered
+  let mut s = state.write().unwrap();
+  prepare_round(&mut s);
+  drop(s);
+
   let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
   quiz.generate_questions(pref.rounds,
                           &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id,
@@ -254,7 +259,7 @@ fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, 
                           pref.ask_for_title)?;
 
   let mut s = state.write().unwrap();
-  let next_timeout = prepare_round(&mut s, &pref);
+  let next_timeout = countdown_round(&mut s, &pref);
   let _ = tx_broadcast.send(s.deref().into());
   drop(s);
 
@@ -303,7 +308,17 @@ fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, 
   Ok(())
 }
 
-fn prepare_round(s: &mut GameState, pref: &GamePreferences) -> u64 {
+fn prepare_round(s: &mut GameState)  {
+  s.players = vec![];
+  s.current_question = None;
+  s.status = AppStatus::Preparing;
+  s.action_start = 0;
+  s.next_action = 0;
+  s.given_answers = vec![];
+}
+
+/// Set the countdown where players should get ready
+fn countdown_round(s: &mut GameState, pref: &GamePreferences) -> u64 {
   s.players = vec![];
   s.current_question = None;
   s.status = AppStatus::BeforeGame;
@@ -315,6 +330,7 @@ fn prepare_round(s: &mut GameState, pref: &GamePreferences) -> u64 {
   next_timeout
 }
 
+// End the round, will display end results
 fn end_round(s: &mut GameState) {
   for score in &mut s.players {
     score.last_time = None;
