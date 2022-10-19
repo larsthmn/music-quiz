@@ -15,18 +15,19 @@ export const ResultView: React.FC<ResultViewProps> = ({results, small, title}) =
   if (max <= 0) max = 1;
   return (
     <div className={small ? "small-resultview" : "big-resultview"}>
-      <h2>{title}</h2>
-      {results.map((res) => {
+      <h1>{title}</h1>
+      {results.map((res, index) => {
         return (
-          <div className="result-bar-layout">
-            <div className="player-name">{res.player}</div>
+          <div key={res.player} className="result-bar-layout">
+            <label className={"player-pos pos-" + (index + 1)}>{index + 1}</label>
+            <label className="player-name">{res.player}</label>
             <div className="result-bar-container">
               <div className="result-bar-background">
                 <div className="result-bar" style={{width: String((res.points / max) * 100) + "%"}}/>
                 <div className="result-bar alt-color" style={{width: String(((res.last_points || 0) / max) * 100) + "%"}}/>
                 <div className="result-text">
-                  <div className="result-text-left">{res.points} ({res.correct} / {res.answers_given})</div>
-                  <div className="result-text-right">{res.last_points !== null ? <div className="result-text-right">{res.last_time}s ({res.last_points === 0 ? "falsch" : "+" + res.last_points})</div> : null}</div>
+                  <label className="result-text-left">{res.points} ({res.correct} / {res.answers_given})</label>
+                  <label className="result-text-right">{res.last_points !== null ? <div className="result-text-right">{res.last_time?.toFixed(2)}s ({res.last_points === 0 ? "falsch" : "+" + res.last_points})</div> : null}</label>
                 </div>
               </div>
 

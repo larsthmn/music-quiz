@@ -20,7 +20,7 @@ export const GameButton: React.FC<ButtonProps> = ({onClick, correct, wrong, sele
       </div>
       <div className="button-mark-container">
         {markings?.map((user: string) => {return (
-          <div className="button-mark">{user} </div>
+          <div key={user} className="button-mark">{user} </div>
         );})}
       </div>
     </button>

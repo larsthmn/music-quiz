@@ -45,16 +45,25 @@ export const TEST_GAME_STATE : GameState = {
   players: [
     {
       player: "Lars",
-      points: 100,
+      points: 123,
       correct: 1,
       answers_given: 1,
-      last_points: 10,
+      last_points: 59,
       // last_points: 60,
       last_time: 0.3,
     },
     {
+      player: "Hanswurst",
+      points: 76,
+      correct: 2,
+      answers_given: 2,
+      last_points: 40,
+      // last_points: 60,
+      last_time: 2.123,
+    },
+    {
       player: "Myje",
-      points: 46,
+      points: 59,
       correct: 1,
       answers_given: 1,
       last_points: 10,
@@ -63,18 +72,60 @@ export const TEST_GAME_STATE : GameState = {
     },
     {
       player: "Nils",
-      points: 12,
+      points: 46,
       correct: 2,
       answers_given: 2,
-      last_points: 100,
+      last_points: 23,
       // last_points: 60,
       last_time: 1.312,
-    }
+    },
+    {
+      player: "Denise",
+      points: 46,
+      correct: 2,
+      answers_given: 2,
+      last_points: 23,
+      // last_points: 60,
+      last_time: 1.312,
+    },
+    {
+      player: "Simon",
+      points: 40,
+      correct: 2,
+      answers_given: 2,
+      last_points: 23,
+      // last_points: 60,
+      last_time: 1.312,
+    },
+    {
+      player: "Lena",
+      points: 0,
+      correct: 0,
+      answers_given: 2,
+      last_points: 0,
+      // last_points: 60,
+      last_time: 1.312,
+    },
   ],
   given_answers: [
     {
       answer_id: "Help",
       user: "Lars",
+      ts: 1659900277055
+    },
+    {
+      answer_id: "Help",
+      user: "Hanswurst",
+      ts: 1659900277055
+    },
+    {
+      answer_id: "Help",
+      user: "Myje",
+      ts: 1659900277055
+    },
+    {
+      answer_id: "MC Thunder",
+      user: "Nils",
       ts: 1659900277055
     }
   ],

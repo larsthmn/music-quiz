@@ -27,7 +27,7 @@ const PREFERENCES_FILE: &'static str = "preferences.json";
 #[clap(name = "musicquiz-server", about = "Music Quiz Server")]
 struct Opt {
   /// set the log level
-  #[clap(short = 'l', long = "log", default_value = "WARN")]
+  #[clap(short = 'l', long = "log", default_value = "INFO")]
   log_level: String,
 
   /// set the spotify config file

@@ -13,6 +13,9 @@ import {TimeAnswer} from "../../../../shared/TimeAnswer";
 import {DEFAULT_GAME_STATE, SOCKET_CHECK_RATE, TEST_GAME_STATE, TIME_SYNC_PERIOD} from "./GameViewConstants";
 import {config} from "../../constants";
 
+// Never true in production
+const TEST_STATE = process.env.NODE_ENV === 'development' && false;
+
 enum SocketState {
   Connecting = 0, // Socket has been created. The connection is not yet open.
   Open = 1, // The connection is open and ready to communicate.
@@ -44,16 +47,16 @@ export class GameView extends React.Component<any, GameViewState> {
 
   constructor(props: any) {
     super(props);
-    this.state = {
+    this.state = TEST_STATE ? {
+      gamestate: TEST_GAME_STATE,
+      ping: 10,
+      socket_state: SocketState.Open
+    } :
+    {
       gamestate: DEFAULT_GAME_STATE,
       ping: 0,
       socket_state: SocketState.Closed
     };
-    // this.state = {
-    //   gamestate: TEST_GAME_STATE,
-    //   ping: 10,
-    //   socket_state: SocketState.Open
-    // };
     this.connect = this.connect.bind(this);
     this.mounted = false;
     this.interval_time = null;
@@ -74,7 +77,9 @@ export class GameView extends React.Component<any, GameViewState> {
         this.socket.send(JSON.stringify(message));
       }
     }, TIME_SYNC_PERIOD);
-    this.interval_socket = setInterval(this.connect, SOCKET_CHECK_RATE);
+    if (!TEST_STATE) {
+      this.interval_socket = setInterval(this.connect, SOCKET_CHECK_RATE);
+    }
     this.mounted = true;
   }
 
@@ -94,8 +99,11 @@ export class GameView extends React.Component<any, GameViewState> {
   connect() {
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState
     if (this.socket === undefined || (this.socket && this.socket.readyState === SocketState.Closed)) {
-      this.socket = new WebSocket(config.WS_URL);
+      const regex : RegExp = /([a-zA-Z0-9\.]+):(\d+)/g;  // match host and port
+      const match = regex.exec(window.self.location.host);
+      const host : string | null = match && match[1];
 
+      this.socket = new WebSocket('ws://' + host  + ':' + config.WS_PORT + '/ws');
       this.socket.onmessage = (msg) => {
         const ws_msg : WebSocketMessage = JSON.parse(msg.data);
         switch (ws_msg.message_type) {
@@ -129,7 +137,6 @@ export class GameView extends React.Component<any, GameViewState> {
       data: JSON.stringify(data)
     }
     if(this.socket) this.socket.send(JSON.stringify(message));
-    console.log("Pressed " + id);
   }
 
   render() {
@@ -162,16 +169,17 @@ export class GameView extends React.Component<any, GameViewState> {
           content =
             <div>
               <label className={`game-progress`}>{data.current_question !== null ? (data.current_question.index + 1) : ""}/{data.current_question?.total_questions}</label>
-              <h2>
+              <h1>
                 {data.status === "InGameAnswerPending" && data.current_question?.text}
                 {data.status === "InGameWaitForNextQuestion" && "Lösung: " + data.current_question?.solution}
-              </h2>
+              </h1>
               <div className={'button_container'}>
-                <TimeBar key={Math.random()} total_time={Number(data.next_action - data.action_start)}
-                         elapsed={Date.now() - Number(data.action_start - this.timediff)}
+                <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
+                         elapsed={Date.now() - this.timediff - data.action_start}
                          colorful={data.status === "InGameAnswerPending"}/>
                 {buttons}
               </div>
+              <hr/>
               <ResultView title="Punktestand" small={true} results={data.players}/>
             </div>
           break;
@@ -181,26 +189,26 @@ export class GameView extends React.Component<any, GameViewState> {
           break;
 
         case "Ready":
-          content = <h2>Warte auf Spielstart...</h2>;
+          content = <h1>Warte auf Spielstart...</h1>;
           break;
 
         case "BeforeGame":
           content =
             <div>
-              <h2>Bereitmachen</h2>
-              <TimeBar key={Math.random()} total_time={Number(data.next_action - data.action_start)}
-                       elapsed={Date.now() - Number(data.action_start - this.timediff)}
+              <h1>Bereitmachen</h1>
+              <TimeBar key={Math.random()} total_time={data.next_action - data.action_start}
+                       elapsed={Date.now() - this.timediff - data.action_start}
                        colorful={true}/>
             </div>;
           break;
 
         case "Preparing":
-          content = <h2>Runde wird vorbereitet...</h2>;
+          content = <h1>Runde wird vorbereitet...</h1>;
           break;
 
         case "Shutdown":
         default:
-          content = <h2>Warte auf Server...</h2>;
+          content = <h1>Warte auf Server...</h1>;
           break;
       }
     }
@@ -209,9 +217,9 @@ export class GameView extends React.Component<any, GameViewState> {
       <div>
         <div>
           <label className={`indicator ${SocketState[socket_state]}`}>{socket_state === SocketState.Open ? this.state.ping + " ms" : socketStateText[socket_state]}</label>
-          <Link to='/'>
-            <button className={'backbutton'}/>
-          </Link>
+          {/*<Link to='/'>*/}
+          {/*  <button className={'backbutton'}/>*/}
+          {/*</Link>*/}
         </div>
         {content}
       </div>
