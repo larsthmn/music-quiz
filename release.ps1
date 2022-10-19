@@ -1,23 +1,24 @@
 # Build everything as release build and copy to release folder
 
-echo "Removing old release..."
+Write-Host "Removing old release..." -ForegroundColor white -BackgroundColor blue
 if (Test-Path release) { Remove-Item release -Recurse }
 
-echo "Copy spotify.json..."
+Write-Host "Copy spotify.json..." -ForegroundColor white -BackgroundColor blue
 copy "shared/spotify.json" "frontend/src/spotify.json"
 
-echo "Build backend..."
+Write-Host "Build backend..." -ForegroundColor white -BackgroundColor blue
 cargo build --release --manifest-path=backend/Cargo.toml
 
-echo "Build frontend..."
+Write-Host "Build frontend..." -ForegroundColor white -BackgroundColor blue
 npm run build --prefix frontend
 
-echo "Copy files..."
+Write-Host "Copy files..." -ForegroundColor white -BackgroundColor blue
 mkdir release
 mkdir release/files
 copy "shared/spotify.json" "release/spotify.json"
 copy backend/target/release/music-quiz.exe release/music-quiz.exe
 Copy-Item -Path "frontend/build/*" -Destination "release/files" -Recurse
+New-Item "release/start.bat" -ItemType File -Value "music-quiz.exe"
 
-echo "Finished"
+Write-Host "Finished!" -ForegroundColor white -BackgroundColor DarkGreen
 pause

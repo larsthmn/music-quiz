@@ -1,8 +1,7 @@
 body {
   margin: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Tahoma', sans-serif;
+  //font-family: 'Verdana', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
@@ -13,7 +12,7 @@ body {
   background: linear-gradient(45deg, #282e36 10%, #2c303a 90%);
   background-size: 100% auto;
   background-attachment: fixed;
-
+  font-weight: lighter;
 }
 
 code {
@@ -29,11 +28,26 @@ code {
 h1, h2, h3 {
   text-align: center;
   color: white;
-  text-shadow: rgba(255, 255, 255, 0.35) 0 0 20px;
+  text-shadow: rgba(255, 255, 255, 0.25) 0 0 20px;
+  font-weight: normal;
 }
 
 h1 {
+  font-size: x-large;
+}
+
+h2 {
   font-size: large;
+}
+
+// Horizontal line
+hr {
+  display: block;
+  height: 1px;
+  border: 0;
+  border-top: 1px solid #445364;
+  margin: 1em 0;
+  padding: 0;
 }
 
 button {
@@ -90,4 +104,3 @@ select {
     background-position: 40% 50%;
   }
 }
-

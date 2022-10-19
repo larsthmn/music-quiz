@@ -1,10 +1,10 @@
 const prod = {
-  WS_URL: 'ws://localhost:80/ws',
+  WS_PORT: 80,
   SPOTIFY_REDIRECT_URL: "http://localhost:80/redirect",
 };
 
 const dev = {
-  WS_URL: 'ws://localhost:8000/ws',
+  WS_PORT: 8000,
   SPOTIFY_REDIRECT_URL: "http://localhost:3000/redirect",
 };
 
