@@ -11,9 +11,10 @@ export const LoginView: React.FC = () => {
   let nav = useNavigate();
 
   return (
-    <div>
-      <h1>Namen eingeben</h1>
-      <input className="name_input" onChange={(e) => setName(e.target.value)} defaultValue={name ? name : ""}/>
+    <div className={"login-view"}>
+      {/*<h1>Namen eingeben</h1>*/}
+      <input className="form__field" onChange={(e) => setName(e.target.value)} defaultValue={name ? name : ""} placeholder={"Name"} id={'name'} name={"name"}/>
+      <label htmlFor="name" className="form__label">Name</label>
       <button className={"login_button"} type="submit" onClick={
         () => {
           if (name !== "" && name != null) {

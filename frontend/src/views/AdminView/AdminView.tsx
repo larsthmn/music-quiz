@@ -90,11 +90,15 @@ export const AdminView: React.FC = () => {
       <div className="admin-container">
         <fieldset>
           <legend>Steuerung</legend>
-          <select value={preferences.selected_playlist?.id} onChange={(e) => savePreference("playlist", e.target.value)}>
-            {preferences.playlists.map((p) => {
-              return <option key={p.id} value={p.id}>{p.name}</option>
-            })}
-          </select>
+          <div className={"playlist-container"}>
+            <select value={preferences.selected_playlist?.id} onChange={(e) => savePreference("playlist", e.target.value)}>
+              {preferences.playlists.map((p) => {
+                return <option key={p.id} value={p.id}>{p.name}</option>
+              })}
+            </select>
+            <button onClick={refreshSpotify} className={"refresh-button"}>
+            </button>
+          </div>
           <button onClick={startGame}>
             Spiel starten
           </button>
@@ -105,17 +109,12 @@ export const AdminView: React.FC = () => {
 
         <fieldset>
           <legend>Spotify</legend>
-          <div>
-            <button onClick={refreshSpotify}>
-              Refresh Playlists
-            </button>
             <button onClick={(e) => {
               e.preventDefault();
               spotifyLogin()
             }}>
               Spotify verbinden
             </button>
-          </div>
           <label>
             <input checked={preferences.preview_mode}
                    type="checkbox"

@@ -14,8 +14,8 @@ use ts_rs::TS;
 const MAX_POINTS_CORRECT_ANSWER: i32 = 100; /// Maximum points for correct answer
 const MIN_POINTS_CORRECT_ANSWER: i32 = 20;  /// Minimum points for correct answer
 const TIME_FULL_POINTS_MS: u32 = 1000;  /// Time after question start in which full points are given (in time score mode)
-const POINTS_TIME: [f32; 5] = [0.0, 1000.0, 2000.0, 3000.0, 10000.0];
-const POINTS_AMOUNT: [i32; 5] = [100, 100, 70, 50, 20];
+const POINTS_TIME: [f32; 6] = [0.0, 800.0, 1300.0, 2000.0, 3000.0, 10000.0];
+const POINTS_AMOUNT: [i32; 6] = [100, 100, 80, 60, 50, 20];
 
 #[derive(Serialize, Clone, TS)]
 #[ts(export)]

@@ -99,7 +99,7 @@ export class GameView extends React.Component<any, GameViewState> {
   connect() {
     // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState
     if (this.socket === undefined || (this.socket && this.socket.readyState === SocketState.Closed)) {
-      const regex : RegExp = /([a-zA-Z0-9\.]+):(\d+)/g;  // match host and port
+      const regex : RegExp = /([a-zA-Z0-9\.]+):?(\d+)?/g;  // match host and port
       const match = regex.exec(window.self.location.host);
       const host : string | null = match && match[1];
 
@@ -217,9 +217,9 @@ export class GameView extends React.Component<any, GameViewState> {
       <div>
         <div>
           <label className={`indicator ${SocketState[socket_state]}`}>{socket_state === SocketState.Open ? this.state.ping + " ms" : socketStateText[socket_state]}</label>
-          {/*<Link to='/'>*/}
-          {/*  <button className={'backbutton'}/>*/}
-          {/*</Link>*/}
+          <Link to='/'>
+            <button className={'backbutton'}/>
+          </Link>
         </div>
         {content}
       </div>
