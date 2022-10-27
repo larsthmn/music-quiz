@@ -169,7 +169,7 @@ pub struct TimeAnswer {
   #[ts(type = "number")]
   ts: u64,
   #[ts(type = "number")]
-  ts_received: u64
+  ts_received: u64,
 }
 
 pub async fn get_time(Query(params): Query<HashMap<String, u64>>) -> Json<TimeAnswer> {
@@ -262,43 +262,49 @@ async fn read_socket(mut receiver: SplitStream<WebSocket>, state: Arc<RwLock<Gam
     // Only thing that can be received is an answer (currently)
     match result {
       Ok(ws_msg) => {
-        if let Ok(msg) = serde_json::from_str::<WebSocketMessage>(ws_msg.into_text().unwrap().as_str()) {
-          match msg.message_type {
-            DataType::Answer => {
-              // User clicked an answer, select his guess
-              if let Ok(answer) = serde_json::from_str::<AnswerFromUser>(msg.data.as_str()) {
-                let mut s = state.write().unwrap();
-                if let Err(err) = s.give_answer(answer) {
-                  log::warn!("Error on giving answer: {:?}", err);
-                } else {
-                  // State changes when answer is given, send broadcast with new state
-                  if let Err(e) = tx_broadcast.send(s.deref().into()) {
-                    log::warn!("Error on sending broadcast {:?}", e);
-                  }
+        match serde_json::from_str::<WebSocketMessage>(ws_msg.into_text().unwrap().as_str()) {
+          Ok(msg) => {
+            match msg.message_type {
+              DataType::Answer => {
+                // User clicked an answer, select his guess
+                match serde_json::from_str::<AnswerFromUser>(msg.data.as_str()) {
+                  Ok(answer) => {
+                    let mut s = state.write().unwrap();
+                    if let Err(err) = s.give_answer(answer) {
+                      log::warn!("Error on giving answer: {:?}", err);
+                    } else {
+                      // State changes when answer is given, send broadcast with new state
+                      if let Err(e) = tx_broadcast.send(s.deref().into()) {
+                        log::warn!("Error on sending broadcast {:?}", e);
+                      }
+                    }
+                  },
+                  Err(e) => log::warn!("Received invalid answer {:?}!", e),
                 }
               }
-            }
 
-            DataType::Time => {
-              // User sent his timestamp, answer with diff
-              match serde_json::from_str::<TimeRequest>(msg.data.as_str()) {
-                Ok(request) => {
-                  // State changes when answer is given, send broadcast with new state
-                  let now_ms = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("System time is < UNIX_EPOCH")
-                    .as_millis() as u64;
-                  let answer = TimeAnswer { diff_receive: request.now as i64 - now_ms as i64, ts: now_ms , ts_received: request.now };
-                  if let Err(e) = tx_single.send((&answer).into()).await {
-                    log::warn!("Error on sending time answer {:?}", e);
+              DataType::Time => {
+                // User sent his timestamp, answer with diff
+                match serde_json::from_str::<TimeRequest>(msg.data.as_str()) {
+                  Ok(request) => {
+                    // State changes when answer is given, send broadcast with new state
+                    let now_ms = SystemTime::now()
+                      .duration_since(UNIX_EPOCH)
+                      .expect("System time is < UNIX_EPOCH")
+                      .as_millis() as u64;
+                    let answer = TimeAnswer { diff_receive: request.now as i64 - now_ms as i64, ts: now_ms, ts_received: request.now };
+                    if let Err(e) = tx_single.send((&answer).into()).await {
+                      log::warn!("Error on sending time answer {:?}", e);
+                    }
                   }
+                  Err(e) => log::warn!("Invalid time request: {:?}", e)
                 }
-                Err(e) => log::warn!("Invalid time request: {:?}", e)
               }
-            }
 
-            _ => log::warn!("Unknowm data type {:?}", msg.message_type)
+              _ => log::warn!("Unknowm data type {:?}", msg.message_type)
+            }
           }
+          Err(e) => log::warn!("Received invalid message {:?}!", e),
         }
       }
       Err(err) => {
@@ -317,7 +323,7 @@ async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLo
   // initial package after connection to give client the current state as fast as possible
   log::debug!("Send first");
   // Make message from state and send
-  let msg : Message = (||
+  let msg: Message = (||
     {
       let s = state.read().unwrap();
       Message::from(s.deref())
@@ -326,7 +332,7 @@ async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLo
     return;
   }
 
-  const MIN_STATE_PERIOD : u64 = 500;
+  const MIN_STATE_PERIOD: u64 = 500;
 
   // Timer to ensure that the state is sent after some time without broadcasts
   let timer = tokio::time::sleep(Duration::from_millis(MIN_STATE_PERIOD));

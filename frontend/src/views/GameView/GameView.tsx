@@ -15,6 +15,7 @@ import {config} from "../../constants";
 
 // Never true in production
 const TEST_STATE = process.env.NODE_ENV === 'development' && false;
+const TIMEDIFF_AVERAGE = 10;
 
 enum SocketState {
   Connecting = 0, // Socket has been created. The connection is not yet open.
@@ -41,6 +42,7 @@ export class GameView extends React.Component<any, GameViewState> {
   private interval_time: ReturnType<typeof setInterval> | null;
   private interval_socket: ReturnType<typeof setInterval> | null;
   private timediff : number;
+  private timediff_last_values: Array<number>;
   private socket: WebSocket | undefined;
 
   static contextType = globalStateContext;
@@ -62,6 +64,7 @@ export class GameView extends React.Component<any, GameViewState> {
     this.interval_time = null;
     this.interval_socket = null;
     this.timediff = 0;
+    this.timediff_last_values = []
   }
 
   componentDidMount() {
@@ -113,7 +116,12 @@ export class GameView extends React.Component<any, GameViewState> {
 
           case "Time":
             const time_ans : TimeAnswer = JSON.parse(ws_msg.data);
-            this.timediff = time_ans.diff_receive;
+            if (this.timediff_last_values.length >= TIMEDIFF_AVERAGE) {
+              this.timediff_last_values.shift();
+            }
+            this.timediff_last_values.push(time_ans.diff_receive);
+            this.timediff = Math.round(this.timediff_last_values.reduce((a, b) => a + b, 0) / this.timediff_last_values.length);
+
             this.setState({ping: Date.now() - Number(time_ans.ts_received)})
             break;
 
@@ -136,7 +144,11 @@ export class GameView extends React.Component<any, GameViewState> {
       message_type: "Answer",
       data: JSON.stringify(data)
     }
-    if(this.socket) this.socket.send(JSON.stringify(message));
+    if(this.socket) {
+      this.socket.send(JSON.stringify(message));
+      console.log("sent" + id);
+    }
+    console.log("clicked" + id);
   }
 
   render() {
@@ -213,6 +225,7 @@ export class GameView extends React.Component<any, GameViewState> {
       }
     }
 
+    //  / {this.timediff / 1000}s
     return (
       <div>
         <div>
