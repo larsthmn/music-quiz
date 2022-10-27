@@ -1,6 +1,6 @@
 import {GameState} from "../../../../shared/GameState";
 
-export const TIME_SYNC_PERIOD = 1000;
+export const TIME_SYNC_PERIOD = 500;
 export const SOCKET_CHECK_RATE = 1000;
 
 export const DEFAULT_GAME_STATE : GameState = {
