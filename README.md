@@ -1,13 +1,10 @@
 # Music Quiz
 
-## Dependencies
+## General
 
-This app is developed on Windows, so we stick with the GNU make port and powershell commands in the Makefile. 
-Install `make` with
-```
-choco install make
-```
-To use it under Linux, you probably need to rewrite the Makefile with bash commands or execute the stuff in it manually.
+This app is developed on Windows and powershell scripts are used.
+It can be deployed on GNU/Linux, but you probably need to rewrite the scripts with bash commands or execute the stuff in it manually.
+Hasn't been tested yet though.
 
 ## Development
 
