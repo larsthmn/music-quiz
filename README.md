@@ -1,14 +1,54 @@
 # Music Quiz
 
-## General
+Welcome to my fun music guessing game! 
+This game can be played in a local network using your browsers as clients.
+It uses your Spotify playlists as a source for songs and opens a web server for clients to connect to.
+Players will need to correctly select the name or title of the currently played song from provided answers.
+Songs are played on the server this application runs on, so it should have speakers that can be heard by all players.
+(Obviously this game is intended to be played locally with real people in your room, so you need to meet your friends in real life).
+Clients are typically smartphones, but you may use anything that has a (somehow recent) web browser.
+ 
+Enjoy and may the best guesser win!
+
+![game.png](images/game.png) 
+![control.png](images/control.png)
+
+## Running
+### You need
+- Spotify Premium
+- A PC with speakers
+- Some friends to play with (also works with strangers, but you need to grant them access to your local network) [optional]
+- One web browser client (=smartphone in most cases) for each player
+- The released application (either built from source or downloaded from the Release section)
+
+### How to play
+- Start the application with start.bat (or run music-quiz.exe from a command line).
+- Open Settings on any client (e.g. browser on host PC) to connect to your spotify account. 
+  You usually do not have to this every time as the access token is saved locally.
+- Players should open their browser, type in the IP of the host PC into their web browser 
+  (if you don't know your IP, open a command line and use `ipconfig` to show your local IP. Usually something like `192.168.X.X`). 
+- Select a playlist, set some options and start a round in Settings. You can select from playlists that you follow in Spotify.
+- Everything else should be obvious. I guess.
+
+## Building
 
 This app is developed on Windows and powershell scripts are used.
 It can be deployed on GNU/Linux, but you probably need to rewrite the scripts with bash commands or execute the stuff in it manually.
 Hasn't been tested yet though.
 
-## Development
+The backend is written in **Rust** while the frontend is written in **Typescript** with **React** as framework. 
+This is my first Rust and also Typescript project, so there may be some room for optimizations. 
+But it runs quite well, even with over 10 participants. Mostly limited by Wi-Fi bandwidth, make sure there are no
+downloads running in the background over Wi-Fi to stop people from complaining and calling you a bad programmer.
+
+**Dependencies:**
+- Rust
+- [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+- whatever I may have forgotten
 
 Put all spotify credentials into `shared/spotify.json` and `shared/spotify_devel.json`. 
+Tbh, I am not sure if Spotify has problems with sharing app credentials, 
+but as long as you don't use it for any other app you're free to use the ones in this repo.
 
 Use the powershell script `install.ps1` to set up everything for development.
 
@@ -18,6 +58,7 @@ Then compile and start the rust server in debug build with the options
 ```
 This starts the backend locally on port 8000 to handle all API calls.
 The redirect URL has port 3000 when developing and 80 in production, thereby different spotify configs are needed. 
+
 
 Change to the `frontend` directory and start the frontend with
 ```
@@ -42,3 +83,6 @@ release.ps1
 This compiles the frontend and backend and copies all files to the release folder. 
 Take the whole release folder for distribution.
 Start the `music-quiz.exe` in some terminal and connect to the IP of the host computer with your clients.
+
+## Wishlist
+- Multilanguage support in frontend (currently texts are in German)
