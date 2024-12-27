@@ -1,16 +1,16 @@
-use std::{fs, thread};
+use std::{fs};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::str::FromStr;
-use std::sync::{Arc, mpsc, Mutex, RwLock};
+use std::sync::{Arc};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use axum::{Extension, extract::ws::Message, routing::{get, post}};
-use axum_extra::routing::SpaRouter;
 use clap::Parser;
 use log::LevelFilter;
 use rspotify::{AuthCodeSpotify, Config, Credentials, OAuth};
 use rspotify::clients::{BaseClient, OAuthClient};
 use serde_json;
 use simple_logger::SimpleLogger;
-
+use tower_http::services::ServeDir;
 use crate::communication::*;
 use crate::game::{GameCommand, GamePreferences, GameReferences, GameState};
 use crate::spotify::spotify_loop;
@@ -47,7 +47,6 @@ struct Opt {
   static_dir: String,
 }
 
-
 #[tokio::main]
 async fn main() {
   let opt = Opt::parse();
@@ -60,9 +59,9 @@ async fn main() {
 
   // Internal objects
   // channel to send GameCommands like start and stop to the game thread
-  let (tx_cmd, rx_cmd) = mpsc::channel::<GameCommand>();
+  let (tx_cmd, rx_cmd) = mpsc::channel::<GameCommand>(32);
   // channel to wake up spotify thread
-  let (tx_spotify, rx_spotify) = mpsc::channel::<()>();
+  let (tx_spotify, rx_spotify) = mpsc::channel::<()>(32);
   // channel for broadcast messages (mainly state for all when one gives an answer)
   let (tx_broadcast, rx_broadcast) = tokio::sync::broadcast::channel::<Message>(8);
 
@@ -80,17 +79,17 @@ async fn main() {
   }
   let creds = Credentials { id: spotify_prefs.client_id, secret: Some(spotify_prefs.client_secret) };
   let redirect_uri = spotify_prefs.redirect_uri;
-  let mut spotify_client = AuthCodeSpotify::with_config(creds,
+  let spotify_client = AuthCodeSpotify::with_config(creds,
                                                         OAuth {
                                                           scopes: spotify_prefs.scopes.into_iter().collect(),
                                                           redirect_uri,
                                                           ..Default::default()
                                                         },
                                                         Config { token_cached: true, ..Default::default() });
-  match spotify_client.read_token_cache(true) {
+  match spotify_client.read_token_cache(true).await {
     Ok(token) => {
-      *spotify_client.get_token().lock().unwrap() = token;
-      match spotify_client.refresh_token() {
+      *spotify_client.get_token().lock().await.unwrap() = token;
+      match spotify_client.refresh_token().await {
         Ok(()) => log::info!("Refreshed token"),
         Err(e) => log::warn!("Could not refresh token on start: {:?}", e)
       }
@@ -99,8 +98,9 @@ async fn main() {
   }
 
   // Shared objects
+  let spotify_arc = Arc::new(spotify_client);
   let references = Arc::new(Mutex::new(
-    GameReferences { tx_commands: tx_cmd, tx_spotify, spotify_client, tx_broadcast, rx_broadcast }));
+    GameReferences { tx_commands: tx_cmd, tx_spotify, spotify_client: spotify_arc, tx_broadcast, rx_broadcast }));
   let mut game_pref = GamePreferences::new();
   if let Ok(file) = fs::File::open(PREFERENCES_FILE) {
     if let Ok(p) = serde_json::from_reader::<fs::File, GamePreferences>(file) {
@@ -110,22 +110,23 @@ async fn main() {
   let preferences = Arc::new(Mutex::new(game_pref));
   let gamestate = Arc::new(RwLock::new(GameState::new()));
 
-  // Spawn Game thread
   let g = gamestate.clone();
   let p = preferences.clone();
   let r = references.clone();
-  let handle_gamethread = thread::spawn(move || { game::run(g, rx_cmd, p, r) });
+  let handle_gametask = tokio::spawn(async move { game::run(g, rx_cmd, p, r).await });
 
-  // Spawn spotify thread
+  // Spawn spotify task
   let p = preferences.clone();
   let r = references.clone();
-  let handle_spotifythread = thread::spawn(move || { spotify_loop(rx_spotify, p, r) });
+  let handle_spotifytask = tokio::spawn(async move { spotify_loop(rx_spotify, p, r).await });
+
+  let static_files_service = ServeDir::new("files");
 
   // Start HTTP interface
   // SPA Router serves all files at /files, GET / gives /files/index.html
   // In frontend/package.json the homepage is configured as files which makes all files to be expected in /files
   let app = axum::Router::new()
-    .merge(SpaRouter::new("/files", "files"))
+    .nest_service("/files", static_files_service)
     .route("/get_state", get(get_state))
     .route("/get_time", get(get_time))
     .route("/get_preferences", get(get_preferences))
@@ -137,20 +138,20 @@ async fn main() {
     .route("/authorize_spotify", post(authorize_spotify))
     .route("/refresh_spotify", post(refresh_spotify))
     .route("/ws", get(ws_handler))
-    .layer(Extension(gamestate))
+    .layer(Extension(gamestate))  // todo: with_state instead?
     .layer(Extension(references))
     .layer(Extension(preferences));
 
   let addr = SocketAddr::from((opt.addr.parse::<Ipv4Addr>().unwrap(), opt.port));
   log::info!("Starting server at {}", addr);
 
-  axum::Server::bind(&addr)
-    .serve(app.into_make_service())
+  let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+  axum::serve(listener, app)
     .await
     .unwrap();
 
-  handle_gamethread.join().unwrap();
-  handle_spotifythread.join().unwrap();
+  handle_gametask.await.unwrap();
+  handle_spotifytask.await.unwrap();
 
   log::info!("Goodbye.");
 }

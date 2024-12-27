@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex, RwLock};
-use std::sync::mpsc;
+use std::sync::{Arc};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use axum::extract::ws::Message;
 use serde::{Deserialize, Serialize};
@@ -105,7 +105,7 @@ pub struct GameState {
 pub struct GameReferences {
   pub tx_commands: mpsc::Sender<GameCommand>,
   pub tx_spotify: mpsc::Sender<()>,
-  pub spotify_client: AuthCodeSpotify,
+  pub spotify_client: Arc<AuthCodeSpotify>,
   pub tx_broadcast: tokio::sync::broadcast::Sender<Message>,
   pub rx_broadcast: tokio::sync::broadcast::Receiver<Message>,
 }
@@ -244,65 +244,71 @@ fn get_epoch_ms() -> u64 {
 ///
 /// Init => for each `question` [set question => wait for answer] => show results.
 /// Preferences stay the same for the whole round.
-fn game_round(state: &Arc<RwLock<GameState>>, rx: &mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: AuthCodeSpotify,
+async fn game_round(state: &Arc<RwLock<GameState>>, rx: &mut mpsc::Receiver<GameCommand>, pref: GamePreferences, spotify: Arc<AuthCodeSpotify>,
               tx_broadcast: &Sender<Message>) -> Result<(), GameError> {
   // Generate questions to be answered
-  let mut s = state.write().unwrap();
+  let mut s = state.write().await;
   prepare_round(&mut s);
   drop(s);
 
-  let mut quiz = SongQuiz::new(&spotify, pref.preview_mode);
+  let mut quiz = SongQuiz::new(spotify, pref.preview_mode);
   quiz.generate_questions(pref.rounds,
                           &pref.selected_playlist.as_ref().ok_or(GameError::RuntimeError("No playlist selected"))?.id,
                           pref.ask_for_artist,
-                          pref.ask_for_title)?;
+                          pref.ask_for_title).await?;
 
-  let mut s = state.write().unwrap();
+  let mut s = state.write().await;
   let next_timeout = countdown_round(&mut s, &pref);
   let _ = tx_broadcast.send(s.deref().into());
   drop(s);
 
   // Wait for game start or stopping game
-  if !wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
+  if !wait_for_command(rx, GameCommand::StopGame, next_timeout).await {
     // Init results of this round
     for question in quiz.get_questions().clone() {
       // Set new question (state is changed first so the user sees the question before the music starts -
       // could also be done the other way around, but then the music may start when users do not see the question yet)
-      let mut s = state.write().unwrap();
+      // todo: start song with volume 0 to buffer, remove preview mp3s
+      let mut s = state.write().await;
       let next_timeout = set_question(question.clone(), &mut s, &pref);
       let _ = tx_broadcast.send(s.deref().into());
       drop(s);
-      if let Err(e) = quiz.begin_question_action(question.index as usize) {
+      if let Err(e) = quiz.begin_question_action(question.index as usize).await {
         log::warn!("Begin question failed with error: {:?}", e);
       }
 
       // Wait for users to answer or stopping game
-      if wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
+      if wait_for_command(rx, GameCommand::StopGame, next_timeout).await {
         break;
       }
 
-      if let Err(e) = quiz.stop_question_action(question.index as usize){
+      if let Err(e) = quiz.stop_question_action(question.index as usize).await {
         log::warn!("End question failed with error: {:?}", e);
       }
 
       // Evaluate answers
-      let mut s = state.write().unwrap();
+      let mut s = state.write().await;
       let next_timeout = finish_question(&question, &mut s, &pref);
       let _ = tx_broadcast.send(s.deref().into());
       drop(s);
 
       // Wait for next question or stopping game
-      if wait_for_command(&rx, GameCommand::StopGame, next_timeout) {
+      if wait_for_command(rx, GameCommand::StopGame, next_timeout).await {
         break;
       }
     }
   }
 
   // show results
-  let mut s = state.write().unwrap();
+  let mut s = state.write().await;
   end_round(&mut s);
   let _ = tx_broadcast.send(s.deref().into());
   drop(s);
+
+  // stop playback
+  if let Err(e) =  quiz.shutdown().await {
+    log::warn!("Ending round failed with error: {:?}", e);
+  }
 
   Ok(())
 }
@@ -428,12 +434,12 @@ fn set_question(mut question: Question, s: &mut GameState, pref: &GamePreference
 }
 
 /// Wait for a command or until some time in ms after epoch
-fn wait_for_command(rx: &mpsc::Receiver<GameCommand>, command: GameCommand, until: u64) -> bool {
+async fn wait_for_command(rx: &mut mpsc::Receiver<GameCommand>, command: GameCommand, until: u64) -> bool {
   loop {
     let diff: i64 = (until.checked_sub(get_epoch_ms()).unwrap_or(100)) as i64;
     if diff > 0 {
-      match rx.recv_timeout(Duration::from_millis((diff) as u64)) {
-        Ok(cmd) if cmd == command => {
+      match tokio::time::timeout(Duration::from_millis((diff) as u64), rx.recv()).await {
+        Ok(Some(cmd)) if cmd == command => {
           return true;
         }
         Ok(_) => {}
@@ -446,15 +452,15 @@ fn wait_for_command(rx: &mpsc::Receiver<GameCommand>, command: GameCommand, unti
 }
 
 /// Main loop for the game thread. `rx` is used to receive game commands.
-pub fn run(state: Arc<RwLock<GameState>>, rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>,
+pub async fn run(state: Arc<RwLock<GameState>>, mut rx: mpsc::Receiver<GameCommand>, preferences: Arc<Mutex<GamePreferences>>,
            references: Arc<Mutex<GameReferences>>) {
 
-  let r = references.lock().unwrap();
+  let r = references.lock().await;
   let tx_broadcast = r.tx_broadcast.clone();
   drop(r);
 
   // Wait for start by admin?
-  let mut s = state.write().unwrap();
+  let mut s = state.write().await;
   s.status = AppStatus::Ready;
   s.players = vec![];
   s.action_start = 0;
@@ -465,21 +471,21 @@ pub fn run(state: Arc<RwLock<GameState>>, rx: mpsc::Receiver<GameCommand>, prefe
 
   loop {
     // wait for game start
-    wait_for_game_start(&rx);
+    wait_for_game_start(&mut rx).await;
     log::info!("Start round");
 
     // Get preferences
-    let p_mut = preferences.lock().unwrap();
+    let p_mut = preferences.lock().await;
     let pref = p_mut.clone();
     drop(p_mut);
 
     // Get spotify auth code
-    let r_mut = references.lock().unwrap();
+    let r_mut = references.lock().await;
     let spotify = r_mut.spotify_client.clone();
     drop(r_mut);
 
     // Play one round
-    match game_round(&state, &rx, pref, spotify, &tx_broadcast) {
+    match game_round(&state, &mut rx, pref, spotify, &tx_broadcast).await {
       Ok(()) => log::info!("Round ended"),
       Err(e) => log::warn!("Round ended with error: {:?}", e)
     }
@@ -488,9 +494,9 @@ pub fn run(state: Arc<RwLock<GameState>>, rx: mpsc::Receiver<GameCommand>, prefe
 }
 
 /// Wait for the Command `StartGame`
-fn wait_for_game_start(rx: &mpsc::Receiver<GameCommand>) {
+async fn wait_for_game_start(rx: &mut mpsc::Receiver<GameCommand>) {
   loop {
-    if let Ok(c) = rx.recv() {
+    if let Some(c) = rx.recv().await {
       if c == GameCommand::StartGame {
         return;
       }

@@ -10,6 +10,18 @@ Clients are typically smartphones, but you may use anything that has a (somehow 
  
 Enjoy and may the best guesser win!
 
+> **⚠ Important Update: Spotify API Changes (December 2024)**
+>
+> As of December 2024, Spotify has revoked access to certain API endpoints, including:
+> - Preview URLs (used for MP3 playback)
+> - Access to "Made For You" playlists directly via the API
+>
+> ### What does this mean for you?
+> - **Disable "Use preview MP3s"**: In the preferences, uncheck the "Use preview MP3s" option as this will not work.
+> - **Workaround for "Made For You" playlists**:
+    If you wish to play a "Made For You" playlist, create a new, real playlist from its contents within Spotify.
+    The newly created playlist will then become accessible on the control page.
+
 ![game.png](images/game.png) 
 ![control.png](images/control.png)
 
@@ -86,3 +98,4 @@ Start the `music-quiz.exe` in some terminal and connect to the IP of the host co
 
 ## Wishlist
 - Multilanguage support in frontend (currently texts are in German)
+- Sorting of playlists in frontend (maybe also show some songs from the playlist)

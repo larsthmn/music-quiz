@@ -1,7 +1,8 @@
 use std::fs;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc};
+use tokio::sync::{Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::{Extension, extract::Query, extract::ws::{Message, WebSocket}, response::Json};
@@ -20,7 +21,7 @@ use crate::game::{AnswerFromUser, GameCommand, GamePreferences, GameReferences, 
 //---------------------------------------------- POST Routes -----------------------------------------------------------
 
 pub async fn select_answer(Extension(state): Extension<Arc<RwLock<GameState>>>, answer: Json<AnswerFromUser>) -> Json<GameState> {
-  let mut s = state.write().unwrap();
+  let mut s = state.write().await;
   if let Err(err) = s.give_answer(answer.deref().clone()) {
     log::warn!("Error on giving answer: {:?}", err);
   }
@@ -28,25 +29,25 @@ pub async fn select_answer(Extension(state): Extension<Arc<RwLock<GameState>>>, 
 }
 
 pub async fn start_game(Extension(references): Extension<Arc<Mutex<GameReferences>>>) {
-  let r = references.lock().unwrap();
-  if let Err(e) = r.tx_commands.send(GameCommand::StartGame) {
+  let r = references.lock().await;
+  if let Err(e) = r.tx_commands.send(GameCommand::StartGame).await {
     log::warn!("Could not send game command ({:?})", e)
   }
 }
 
 pub async fn refresh_spotify(Extension(references): Extension<Arc<Mutex<GameReferences>>>) {
-  let r = references.lock().unwrap();
-  if let Err(e) = r.tx_spotify.send(()) {
+  let r = references.lock().await;
+  if let Err(e) = r.tx_spotify.send(()).await {
     log::warn!("Could not send spotify wakeup ({:?})", e)
   }
 }
 
-pub async fn authorize_spotify(Extension(references): Extension<Arc<Mutex<GameReferences>>>, Query(params): Query<HashMap<String, String>>) {
-  let mut r = references.lock().unwrap();
+pub async fn authorize_spotify(Extension(references): Extension<Arc<Mutex<GameReferences>>>, Query(params): Query<HashMap<String, String>>)  {
+  let r = references.lock().await;
   let code = params.get("code");
   log::info!("received spotify auth code: {:?}", code);
   if let Some(c) = code {
-    let result = r.spotify_client.request_token(c.as_str());
+    let result = r.spotify_client.request_token(c.as_str()).await;
     match result {
       Ok(_) => log::info!("Got auth token!"),
       Err(e) => log::warn!("Could not get auth token {:?}", e)
@@ -70,7 +71,7 @@ pub struct PreferenceParams {
 
 pub async fn set_preference(Extension(preferences): Extension<Arc<Mutex<GamePreferences>>>, params: Query<PreferenceParams>)
                             -> Json<GamePreferences> {
-  let mut p = preferences.lock().unwrap();
+  let mut p = preferences.lock().await;
   if let Some(sm) = params.scoremode {
     log::info!("set scoremode to {:?}", sm);
     p.scoremode = sm;
@@ -131,7 +132,7 @@ fn save_preferences(new_preferences: &GamePreferences, to: &str) {
 
 pub async fn set_preferences(Extension(preferences): Extension<Arc<Mutex<GamePreferences>>>, received: Json<GamePreferences>)
                              -> Json<GamePreferences> {
-  let mut p = preferences.lock().unwrap();
+  let mut p = preferences.lock().await;
   *p = received.deref().clone();
   let new_preferences = p.clone();
   drop(p);
@@ -140,8 +141,8 @@ pub async fn set_preferences(Extension(preferences): Extension<Arc<Mutex<GamePre
 }
 
 pub async fn stop_game(Extension(references): Extension<Arc<Mutex<GameReferences>>>) {
-  let r = references.lock().unwrap();
-  match r.tx_commands.send(GameCommand::StopGame) {
+  let r = references.lock().await;
+  match r.tx_commands.send(GameCommand::StopGame).await {
     Err(e) => log::warn!("Game could not be stopped: {}", e),
     Ok(_) => log::info!("Stopped game")
   }
@@ -150,13 +151,13 @@ pub async fn stop_game(Extension(references): Extension<Arc<Mutex<GameReferences
 //----------------------------------------------- GET Routes -----------------------------------------------------------
 
 pub async fn get_state(Extension(state): Extension<Arc<RwLock<GameState>>>) -> Json<GameState> {
-  let s = state.read().unwrap();
+  let s = state.read().await;
   Json(s.clone())
 }
 
 pub async fn get_preferences(Extension(preferences): Extension<Arc<Mutex<GamePreferences>>>)
                              -> Json<GamePreferences> {
-  let p = preferences.lock().unwrap();
+  let p = preferences.lock().await;
   Json(p.clone())
 }
 
@@ -242,7 +243,7 @@ pub struct WebSocketMessage {
 
 pub async fn ws_handler(ws: WebSocketUpgrade, Extension(state): Extension<Arc<RwLock<GameState>>>,
                         Extension(references): Extension<Arc<Mutex<GameReferences>>>) -> impl IntoResponse {
-  let r = references.lock().unwrap();
+  let r = references.lock().await;
   let tx_broadcast = r.tx_broadcast.clone();
   let rx_broadcast = r.tx_broadcast.subscribe();
   drop(r);
@@ -269,7 +270,7 @@ async fn read_socket(mut receiver: SplitStream<WebSocket>, state: Arc<RwLock<Gam
                 // User clicked an answer, select his guess
                 match serde_json::from_str::<AnswerFromUser>(msg.data.as_str()) {
                   Ok(answer) => {
-                    let mut s = state.write().unwrap();
+                    let mut s = state.write().await;
                     if let Err(err) = s.give_answer(answer) {
                       log::warn!("Error on giving answer: {:?}", err);
                     } else {
@@ -323,11 +324,10 @@ async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLo
   // initial package after connection to give client the current state as fast as possible
   log::debug!("Send first");
   // Make message from state and send
-  let msg: Message = (||
-    {
-      let s = state.read().unwrap();
+  let msg: Message = {
+      let s = state.read().await;
       Message::from(s.deref())
-    })();
+  };
   if sender.send(msg).await.is_err() {
     return;
   }
@@ -345,11 +345,11 @@ async fn write_socket(mut sender: SplitSink<WebSocket, Message>, state: Arc<RwLo
         log::debug!("Send interval");
         timer.as_mut().reset(tokio::time::Instant::now() + Duration::from_millis(MIN_STATE_PERIOD));
         // Make message from state and send
-        let msg : Message = (||
+        let msg : Message =
         {
-          let s = state.read().unwrap();
+          let s = state.read().await;
           Message::from(s.deref())
-        })();
+        };
         if sender.send(msg).await.is_err() {
           return;
         }

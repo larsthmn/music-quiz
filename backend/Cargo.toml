@@ -1,29 +1,29 @@
 [package]
 name = "music-quiz"
-version = "0.2.0"
+version = "0.3.0"
+authors = ["Lars Thiemann"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = "1.0.136"
-serde_json = "1.0.85"
-thiserror = "1.0.30"
-strum = { version = "0.24", features = ["derive"] }
-strum_macros = "0.24"
+serde = "1.0.216"
+serde_json = "1.0.134"
+thiserror = "2.0.9"
+strum = { version = "0.26.3", features = ["derive"] }
+strum_macros = "0.26.4"
 rand = "0.8.5"
-reqwest = { version = "0.11.10", features = ["blocking", "json"]}
-rspotify = { version = "0.11.5", default-features = false, features = ["client-ureq", "ureq-rustls-tls", "env-file"] }
-chrono = "0.4.19"
-simple_logger = "2.1.0"
-log = "0.4.16"
-rodio = "0.15.0"
-bytes = "1.1.0"
-ts-rs = {version = "6.1.2", features = ["format"]}
-axum = {version = "0.5.16", features = ["ws"]}
-axum-extra = { version = "0.3.7", features = ["spa"] }
-tower-http = {version = "0.3.4", features = ["fs"]}
-tokio = {version = "1.21.2", features = ["full"]}
-clap = {version = "4.0.9", features = ["derive"]}
-futures = "0.3.24"
+reqwest = { version = "0.12.11", features = ["blocking", "json"]}
+rspotify = { version = "0.13.3", default-features = false, features = ["client-reqwest","reqwest-default-tls","env-file"] }
+chrono = "0.4.39"
+simple_logger = "5.0.0"
+log = "0.4.22"
+rodio = "0.20.1"
+bytes = "1.9.0"
+ts-rs = {version = "10.1.0", features = ["format"]}
+axum = {version = "0.7.9", features = ["ws", "macros"]}
+tower-http = {version = "0.6.2", features = ["fs"]}
+tokio = {version = "1.42.0", features = ["full"]}
+clap = {version = "4.5.23", features = ["derive"]}
+futures = "0.3.31"
 minterpolate = "0.4.0"
